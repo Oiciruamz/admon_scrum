@@ -1,6 +1,7 @@
 # Escape Room: PMBOK vs Scrum
 
-An educational escape room game that teaches project management methodologies through interactive challenges.
+An educational escape room game that teaches project management methodologies through interactive challenges. lol 0 chatgpt
+
 
 ## Description
 
