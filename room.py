@@ -3,11 +3,13 @@ Room management for the Escape Room game.
 """
 import math
 import random
+import os
 import pygame
 from settings import *
 from educational_content import get_pmbok_content, get_scrum_content
 from assets import assets
 from utils import draw_text, draw_panel, draw_progress_bar, draw_tooltip, create_particle_effect, update_particles, render_particles
+from settings import DEBUG_MODE
 
 class Room:
     """
@@ -27,19 +29,9 @@ class Room:
         self.description = description
         self.background_color = background_color
         self.theme = theme
-        self.objects = []
         self.decorations = []
-        self.particles = []
         self.completed = False
         self.completion_time = 0
-        self.completion_particles = []
-
-        # Visual effects
-        self.ambient_light = 1.0  # 0.0 to 1.0
-        self.light_flicker = False
-        self.light_flicker_intensity = 0.1
-        self.light_flicker_speed = 0.05
-        self.light_flicker_time = 0
 
         # Room dimensions and position
         self.width = ROOM_WIDTH
@@ -58,15 +50,6 @@ class Room:
 
         # Create decorative elements
         self._create_decorations()
-
-    def add_object(self, obj):
-        """
-        Add an interactive object to the room.
-
-        Args:
-            obj: Object to add
-        """
-        self.objects.append(obj)
 
     def _create_decorations(self):
         """
@@ -118,24 +101,10 @@ class Room:
 
     def update(self):
         """
-        Update room state and objects.
+        Update room state.
         """
-        # Update objects
-        for obj in self.objects:
-            obj.update()
-
         # Update decorations
         self._update_decorations()
-
-        # Update particles
-        self.particles = update_particles(self.particles)
-        self.completion_particles = update_particles(self.completion_particles)
-
-        # Update light flicker effect
-        if self.light_flicker:
-            self.light_flicker_time += self.light_flicker_speed
-            flicker = math.sin(self.light_flicker_time) * self.light_flicker_intensity
-            self.ambient_light = max(0.7, min(1.0, 1.0 + flicker))
 
         # Check if all required objects are in correct state
         if not self.completed:
@@ -160,44 +129,24 @@ class Room:
 
     def handle_event(self, event):
         """
-        Handle events for the room and its objects.
+        Handle events for the room.
 
         Args:
             event: Pygame event
         """
-        for obj in self.objects:
-            obj.handle_event(event)
+        pass
 
     def render(self, screen):
         """
-        Render the room and its objects.
+        Render the room.
 
         Args:
             screen: Pygame surface to render on
         """
-        # Fill background with dark color
-        screen.fill(self.background_color)
-
-        # Draw room background
+        # Render the room background
         self._render_room_background(screen)
-
-        # Draw decorations
+        # Render decorations
         self._render_decorations(screen)
-
-        # Render objects
-        for obj in self.objects:
-            obj.render(screen)
-
-        # Render particles
-        render_particles(screen, self.particles)
-        render_particles(screen, self.completion_particles)
-
-        # Render room info
-        self._render_room_info(screen)
-
-        # Render completion effect
-        if self.completed:
-            self._render_completion_effect(screen)
 
     def _render_room_background(self, screen):
         """
@@ -208,20 +157,7 @@ class Room:
         """
         # Get room background image based on theme
         room_bg = assets.get_image(f"room_{self.theme}")
-
-        # Apply ambient light effect
-        if self.ambient_light < 1.0:
-            # Create a darkening overlay
-            overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-            darkness = int(255 * (1.0 - self.ambient_light))
-            overlay.fill((0, 0, 0, darkness))
-
-            # Apply overlay to room background
-            temp_surface = room_bg.copy()
-            temp_surface.blit(overlay, (0, 0))
-            screen.blit(temp_surface, (self.x, self.y))
-        else:
-            screen.blit(room_bg, (self.x, self.y))
+        screen.blit(room_bg, (self.x, self.y))
 
         # Draw room border
         pygame.draw.rect(screen, self.border_color,
@@ -262,104 +198,6 @@ class Room:
                     2
                 )
 
-    def _render_room_info(self, screen):
-        """
-        Render room information (name, description, etc.).
-
-        Args:
-            screen: Pygame surface to render on
-        """
-        # Draw room name
-        draw_text(
-            screen,
-            self.name,
-            self.font_medium,
-            WHITE,
-            self.x + 20,
-            self.y + 20,
-            "left"
-        )
-
-        # Draw room description
-        draw_text(
-            screen,
-            self.description,
-            self.font_small,
-            SILVER,
-            self.x + 20,
-            self.y + 60,
-            "left"
-        )
-
-    def _render_completion_effect(self, screen):
-        """
-        Render completion effect when room is completed.
-
-        Args:
-            screen: Pygame surface to render on
-        """
-        # Create completion particles if just completed
-        if self.completion_time == 1:
-            for _ in range(3):
-                particles = create_particle_effect(
-                    WINDOW_WIDTH // 2,
-                    WINDOW_HEIGHT // 2,
-                    count=20,
-                    colors=[YELLOW, WHITE, ORANGE],
-                    min_speed=1,
-                    max_speed=3,
-                    min_size=3,
-                    max_size=8,
-                    min_lifetime=30,
-                    max_lifetime=60
-                )
-                self.completion_particles.extend(particles)
-
-        # Draw completion message
-        if self.completion_time < 120:  # Show for 2 seconds (60 FPS)
-            alpha = min(255, self.completion_time * 8)  # Fade in
-            if self.completion_time > 60:
-                alpha = max(0, 255 - (self.completion_time - 60) * 8)  # Fade out
-
-            # Create a temporary surface for the message with transparency
-            message_surface = pygame.Surface((400, 100), pygame.SRCALPHA)
-
-            # Draw panel background
-            draw_panel(
-                message_surface,
-                0, 0, 400, 100,
-                CHARCOAL,
-                WHITE,
-                2,
-                10,
-                alpha
-            )
-
-            # Draw completion text
-            draw_text(
-                message_surface,
-                "Room Completed!",
-                self.font_large,
-                (*GREEN, alpha),
-                200, 30,
-                "center"
-            )
-
-            draw_text(
-                message_surface,
-                "Proceed to the next room",
-                self.font_small,
-                (*WHITE, alpha),
-                200, 70,
-                "center"
-            )
-
-            # Draw the message in the center of the screen
-            screen.blit(
-                message_surface,
-                (WINDOW_WIDTH // 2 - 200, WINDOW_HEIGHT // 2 - 50)
-            )
-
     def is_completed(self):
         """
         Check if the room is completed.
@@ -375,6 +213,17 @@ class Room:
         This should be overridden by subclasses.
         """
         pass
+
+    def check_collision(self, player_rect):
+        """
+        Check if player's feet collide with any collision rectangle.
+
+        Args:
+            player_rect: The player's feet collision rectangle
+        """
+        if not hasattr(self, 'collision_rects'):
+            return False
+        return any(rect.colliderect(player_rect) for rect in self.collision_rects)
 
 
 class RoomManager:
@@ -446,13 +295,9 @@ class RoomManager:
         room3 = PMBOKExecutionRoom(pmbok_content[2])
         self.rooms.append(room3)
 
-        # Room 4: Monitoring and Control
-        room4 = PMBOKMonitoringRoom(pmbok_content[3])
+        # Room 4: Closing
+        room4 = PMBOKClosingRoom(pmbok_content[3])
         self.rooms.append(room4)
-
-        # Room 5: Closing
-        room5 = PMBOKClosingRoom(pmbok_content[4])
-        self.rooms.append(room5)
 
     def _create_scrum_rooms(self):
         """
@@ -473,800 +318,888 @@ class RoomManager:
         room3 = ScrumEventsRoom(scrum_content[2])
         self.rooms.append(room3)
 
-        # Room 4: Scrum Values
-        room4 = ScrumValuesRoom(scrum_content[3])
-        self.rooms.append(room4)
-
 
 # PMBOK Room Classes
 class PMBOKInitiationRoom(Room):
-    """
-    Room for the Initiation phase of PMBOK.
-    """
     def __init__(self, content):
-        """
-        Initialize the Initiation room.
-
-        Args:
-            content: Educational content for this room
-        """
         super().__init__("PMBOK: Initiation Phase", "Learn about project initiation", GRAY, "gray")
         self.content = content
-        self.total_score = 0
+        self.collision_rects = []  # Lista para los rectángulos de colisión
 
-        # Add objects specific to this room
+        # Cargar y escalar la imagen de fondo una sola vez
+        bg_path = os.path.join("img", "sala_1_pmbok.png")
+        try:
+            background = pygame.image.load(bg_path).convert()
+            bg_width, bg_height = background.get_width(), background.get_height()
+            scale_factor = min(WINDOW_WIDTH / bg_width, WINDOW_HEIGHT / bg_height)
+            new_width = int(bg_width * scale_factor)
+            new_height = int(bg_height * scale_factor)
+            self.scaled_bg = pygame.transform.scale(background, (new_width, new_height))
+            self.bg_x_offset = (WINDOW_WIDTH - new_width) // 2
+            self.bg_y_offset = (WINDOW_HEIGHT - new_height) // 2
+        except Exception as e:
+            print(f"Error loading background image: {e}")
+            self.scaled_bg = None
+
         self._setup_room()
 
     def _setup_room(self):
-        """
-        Set up room-specific objects and challenges.
-        """
-        # Add a project charter object with puzzle
-        charter = InteractiveObject("Project Charter", 250, 200, 150, 100, RED, "square")
-        charter.set_description("Create a project charter by selecting the correct components")
-        charter.set_content(self.content, difficulty=1)
-        self.add_object(charter)
+        """Set up room display only"""
+        self.completed = True
+        self.player_in_transition_area = False  # Inicializar variable para el área de transición
 
-        # Add stakeholder register with puzzle
-        stakeholders = InteractiveObject("Stakeholder Register", 600, 200, 150, 100, GREEN, "circle")
-        stakeholders.set_description("Identify key stakeholders for the project")
-        stakeholders.set_content(self.content, difficulty=2)
-        self.add_object(stakeholders)
+        # Definir las áreas de colisión especificadas
+        self.collision_rects = [
+            # Rectángulos donde el jugador no puede acceder
+            pygame.Rect(218, 98, 381-218, 317-98),     # Rectángulo 1
+            pygame.Rect(383, 98, 446-383, 310-98),     # Rectángulo 2
+            pygame.Rect(449, 90, 580-449, 336-90),     # Rectángulo 3
+            pygame.Rect(582, 90, 602-582, 333-90),     # Rectángulo 4
+            pygame.Rect(0, 159, 19-0, 311-159),        # Rectángulo 5
+            pygame.Rect(18, 161, 108-18, 358-161),     # Rectángulo 6
+            pygame.Rect(108, 158, 213-108, 342-158),   # Rectángulo 7
+            pygame.Rect(0, 381, 186-0, 566-381),       # Rectángulo 8
+            pygame.Rect(415, 371, 596-415, 499-371)    # Rectángulo 9
+        ]
 
-        # Add business case with puzzle
-        business_case = InteractiveObject("Business Case", 425, 350, 150, 100, BLUE, "diamond")
-        business_case.set_description("Develop a business case to justify the project")
-        business_case.set_content(self.content, difficulty=3)
-        self.add_object(business_case)
+        # Convertir las coordenadas relativas a absolutas
+        for rect in self.collision_rects:
+            rect.x += self.bg_x_offset
+            rect.y += self.bg_y_offset
 
-    def update(self):
-        """
-        Update room state and objects.
-        """
-        super().update()
+    def check_collision(self, player_rect):
+        """Check if player collides with any collision rectangle"""
+        return any(rect.colliderect(player_rect) for rect in self.collision_rects)
 
-        # Update total score
-        self.total_score = sum(obj.score for obj in self.objects)
+    def check_transition_area(self, player_rect):
+        """Check if player is in the transition area to next room"""
+        # Importar pygame al inicio del método para evitar errores
+        import pygame
+
+        # Usar el rectángulo especificado: (218, 98) a (381, 317) como área de transición
+        transition_rect = pygame.Rect(
+            218 + self.bg_x_offset,  # Coordenada X inicial
+            98 + self.bg_y_offset,   # Coordenada Y inicial
+            381 - 218,               # Ancho
+            317 - 98                 # Alto
+        )
+
+        # Verificar si el rectángulo del jugador colisiona con el área de transición
+        inside_area = transition_rect.colliderect(player_rect)
+
+        # Dibujar el área de transición en modo debug para visualización
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 0), transition_rect, 2)
+            if inside_area:
+                # Si el jugador está dentro, dibujar un indicador más visible
+                pygame.draw.rect(pygame.display.get_surface(), (255, 0, 0), transition_rect, 1)
+                print("Jugador en área de transición de PMBOKInitiationRoom")
+
+        # Si el jugador está dentro del área, guardar esta información
+        if inside_area:
+            self.player_in_transition_area = True
+        else:
+            self.player_in_transition_area = False
+
+        return inside_area
+
+    def render(self, screen):
+        if self.scaled_bg:
+            screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
+        else:
+            screen.fill((0,0,0))
+
+        # Solo dibuja los rectángulos de colisión si estamos en modo debug
+        if DEBUG_MODE:
+            # Dibujar los rectángulos existentes
+            for rect in self.collision_rects:
+                pygame.draw.rect(screen, RED, rect, 2)
+
+            # Si hay un rectángulo en proceso (entre clic izquierdo y derecho)
+            if hasattr(self, 'start_pos'):
+                current_pos = pygame.mouse.get_pos()
+                preview_rect = pygame.Rect(
+                    min(self.start_pos[0], current_pos[0]),
+                    min(self.start_pos[1], current_pos[1]),
+                    abs(current_pos[0] - self.start_pos[0]),
+                    abs(current_pos[1] - self.start_pos[1])
+                )
+                pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
 
     def _check_completion(self):
-        """
-        Check if the initiation phase challenges are completed.
-        """
-        # Check if all objects are in the correct state
-        all_completed = all(obj.is_completed() for obj in self.objects)
-        if all_completed:
-            self.completed = True
+        """Room is always completed"""
+        self.completed = True
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
+                self.start_pos = pygame.mouse.get_pos()
+            elif event.button == 3 and hasattr(self, 'start_pos'):  # Clic derecho para completar el rectángulo
+                end_pos = pygame.mouse.get_pos()
+                # Convertir a coordenadas relativas
+                rel_start_x = self.start_pos[0] - self.bg_x_offset
+                rel_start_y = self.start_pos[1] - self.bg_y_offset
+                rel_end_x = end_pos[0] - self.bg_x_offset
+                rel_end_y = end_pos[1] - self.bg_y_offset
+                print(f"Nuevo rectángulo PMBOK: ({rel_start_x}, {rel_start_y}) a ({rel_end_x}, {rel_end_y})")
+
+                # Crear el rectángulo (asegurando que width y height sean positivos)
+                x = min(self.start_pos[0], end_pos[0])
+                y = min(self.start_pos[1], end_pos[1])
+                width = abs(end_pos[0] - self.start_pos[0])
+                height = abs(end_pos[1] - self.start_pos[1])
+
+                self.collision_rects.append(pygame.Rect(x, y, width, height))
+                delattr(self, 'start_pos')
+        elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
+            if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
+                self.collision_rects = []
 
 
 class PMBOKPlanningRoom(Room):
-    """
-    Room for the Planning phase of PMBOK.
-    """
     def __init__(self, content):
-        """
-        Initialize the Planning room.
-
-        Args:
-            content: Educational content for this room
-        """
         super().__init__("PMBOK: Planning Phase", "Learn about project planning", LIGHT_BLUE)
         self.content = content
+        self.collision_rects = []  # Lista para los rectángulos de colisión
 
-        # Add objects specific to this room
+        # Cargar y escalar la imagen de fondo una sola vez
+        bg_path = os.path.join("img", "sala_2_pmbok.png")
+        try:
+            background = pygame.image.load(bg_path).convert()
+            bg_width, bg_height = background.get_width(), background.get_height()
+            scale_factor = min(WINDOW_WIDTH / bg_width, WINDOW_HEIGHT / bg_height)
+            new_width = int(bg_width * scale_factor)
+            new_height = int(bg_height * scale_factor)
+            self.scaled_bg = pygame.transform.scale(background, (new_width, new_height))
+            self.bg_x_offset = (WINDOW_WIDTH - new_width) // 2
+            self.bg_y_offset = (WINDOW_HEIGHT - new_height) // 2
+        except Exception as e:
+            print(f"Error loading background image: {e}")
+            self.scaled_bg = None
+
         self._setup_room()
 
     def _setup_room(self):
-        """
-        Set up room-specific objects and challenges.
-        """
-        # Add a WBS object
-        wbs = InteractiveObject("Work Breakdown Structure", 100, 200, 150, 100, YELLOW)
-        wbs.set_description("Create a WBS by organizing project deliverables")
-        self.add_object(wbs)
+        """Set up room display only"""
+        self.completed = True
+        self.player_in_transition_area = False  # Inicializar variable para el área de transición
 
-        # Add schedule object
-        schedule = InteractiveObject("Project Schedule", 500, 200, 150, 100, WHITE)
-        schedule.set_description("Develop a project schedule with correct dependencies")
-        self.add_object(schedule)
+        # Definir las áreas de colisión especificadas
+        self.collision_rects = [
+            # Rectángulos donde el jugador no puede acceder
+            pygame.Rect(203, 104, 374-203, 304-104),  # Rectángulo 1 (área de transición)
+            pygame.Rect(409, 70, 588-409, 366-70),    # Rectángulo 2
+            pygame.Rect(12, 233, 196-12, 410-233)     # Rectángulo 3
+        ]
+
+        # Convertir las coordenadas relativas a absolutas
+        for rect in self.collision_rects:
+            rect.x += self.bg_x_offset
+            rect.y += self.bg_y_offset
+
+    def check_collision(self, player_rect):
+        """Check if player collides with any collision rectangle"""
+        return any(rect.colliderect(player_rect) for rect in self.collision_rects)
+
+    def check_transition_area(self, player_rect):
+        """Check if player is in the transition area to next room"""
+        # Importar pygame al inicio del método para evitar errores
+        import pygame
+
+        # Definir un área de transición (ajustar según la imagen)
+        transition_rect = pygame.Rect(
+            300 + self.bg_x_offset,  # Ajustar según la imagen
+            100 + self.bg_y_offset,  # Ajustar según la imagen
+            100,  # Ancho del área
+            150   # Alto del área
+        )
+
+        # Verificar si el rectángulo del jugador colisiona con el área de transición
+        inside_area = transition_rect.colliderect(player_rect)
+
+        # Dibujar el área de transición en modo debug para visualización
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 0), transition_rect, 2)
+            if inside_area:
+                # Si el jugador está dentro, dibujar un indicador más visible
+                pygame.draw.rect(pygame.display.get_surface(), (255, 0, 0), transition_rect, 1)
+                print("Jugador en área de transición de PMBOKPlanningRoom")
+
+        # Si el jugador está dentro del área, guardar esta información
+        if inside_area:
+            self.player_in_transition_area = True
+        else:
+            self.player_in_transition_area = False
+
+        return inside_area
+
+    def render(self, screen):
+        if self.scaled_bg:
+            screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
+        else:
+            screen.fill((0,0,0))
+
+        # Solo dibuja los rectángulos de colisión si estamos en modo debug
+        if DEBUG_MODE:
+            # Dibujar los rectángulos existentes
+            for rect in self.collision_rects:
+                pygame.draw.rect(screen, RED, rect, 2)
+
+            # Si hay un rectángulo en proceso (entre clic izquierdo y derecho)
+            if hasattr(self, 'start_pos'):
+                current_pos = pygame.mouse.get_pos()
+                preview_rect = pygame.Rect(
+                    min(self.start_pos[0], current_pos[0]),
+                    min(self.start_pos[1], current_pos[1]),
+                    abs(current_pos[0] - self.start_pos[0]),
+                    abs(current_pos[1] - self.start_pos[1])
+                )
+                pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
 
     def _check_completion(self):
-        """
-        Check if the planning phase challenges are completed.
-        """
-        # Check if all objects are in the correct state
-        all_completed = all(obj.is_completed() for obj in self.objects)
-        if all_completed:
-            self.completed = True
+        """Room is always completed"""
+        self.completed = True
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
+                self.start_pos = pygame.mouse.get_pos()
+            elif event.button == 3 and hasattr(self, 'start_pos'):  # Clic derecho para completar el rectángulo
+                end_pos = pygame.mouse.get_pos()
+                # Convertir a coordenadas relativas
+                rel_start_x = self.start_pos[0] - self.bg_x_offset
+                rel_start_y = self.start_pos[1] - self.bg_y_offset
+                rel_end_x = end_pos[0] - self.bg_x_offset
+                rel_end_y = end_pos[1] - self.bg_y_offset
+                print(f"Nuevo rectángulo PMBOK: ({rel_start_x}, {rel_start_y}) a ({rel_end_x}, {rel_end_y})")
+
+                # Crear el rectángulo (asegurando que width y height sean positivos)
+                x = min(self.start_pos[0], end_pos[0])
+                y = min(self.start_pos[1], end_pos[1])
+                width = abs(end_pos[0] - self.start_pos[0])
+                height = abs(end_pos[1] - self.start_pos[1])
+
+                self.collision_rects.append(pygame.Rect(x, y, width, height))
+                delattr(self, 'start_pos')
+        elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
+            if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
+                self.collision_rects = []
 
 
 class PMBOKExecutionRoom(Room):
-    """
-    Room for the Execution phase of PMBOK.
-    """
     def __init__(self, content):
-        """
-        Initialize the Execution room.
-
-        Args:
-            content: Educational content for this room
-        """
         super().__init__("PMBOK: Execution Phase", "Learn about project execution", GREEN)
         self.content = content
+        self.collision_rects = []  # Lista para los rectángulos de colisión
 
-        # Add objects specific to this room
+        # Cargar y escalar la imagen de fondo una sola vez
+        bg_path = os.path.join("img", "sala_3_pmbok.png")
+        try:
+            background = pygame.image.load(bg_path).convert()
+            bg_width, bg_height = background.get_width(), background.get_height()
+            scale_factor = min(WINDOW_WIDTH / bg_width, WINDOW_HEIGHT / bg_height)
+            new_width = int(bg_width * scale_factor)
+            new_height = int(bg_height * scale_factor)
+            self.scaled_bg = pygame.transform.scale(background, (new_width, new_height))
+            self.bg_x_offset = (WINDOW_WIDTH - new_width) // 2
+            self.bg_y_offset = (WINDOW_HEIGHT - new_height) // 2
+        except Exception as e:
+            print(f"Error loading background image: {e}")
+            self.scaled_bg = None
+
         self._setup_room()
 
     def _setup_room(self):
-        """
-        Set up room-specific objects and challenges.
-        """
-        # Add team management object
-        team = InteractiveObject("Team Management", 100, 200, 150, 100, BLUE)
-        team.set_description("Manage the project team effectively")
-        self.add_object(team)
+        """Set up room display only"""
+        self.completed = True
+        self.player_in_transition_area = False  # Inicializar variable para el área de transición
 
-        # Add quality assurance object
-        quality = InteractiveObject("Quality Assurance", 500, 200, 150, 100, RED)
-        quality.set_description("Implement quality assurance processes")
-        self.add_object(quality)
+        # Definir las áreas de colisión especificadas
+        self.collision_rects = [
+            # Rectángulos donde el jugador no puede acceder
+            pygame.Rect(397, 46, 590-397, 499-46),    # Rectángulo 1
+            pygame.Rect(14, 74, 192-14, 346-74),      # Rectángulo 2
+            pygame.Rect(231, 142, 371-231, 330-142),  # Rectángulo 3 (también es el área de transición)
+            pygame.Rect(24, 366, 202-24, 522-366)     # Rectángulo 4
+        ]
+
+        # Convertir las coordenadas relativas a absolutas
+        for rect in self.collision_rects:
+            rect.x += self.bg_x_offset
+            rect.y += self.bg_y_offset
+
+    def check_collision(self, player_rect):
+        """Check if player collides with any collision rectangle"""
+        return any(rect.colliderect(player_rect) for rect in self.collision_rects)
+
+    def check_transition_area(self, player_rect):
+        """Check if player is in the transition area to next room"""
+        # Importar pygame al inicio del método para evitar errores
+        import pygame
+
+        # Usar el rectángulo especificado: (231, 142) a (371, 330) como área de transición
+        transition_rect = pygame.Rect(
+            231 + self.bg_x_offset,  # Coordenada X inicial
+            142 + self.bg_y_offset,  # Coordenada Y inicial
+            371 - 231,               # Ancho
+            330 - 142                # Alto
+        )
+
+        # Verificar si el rectángulo del jugador está cerca del borde del área de transición
+        # Creamos un rectángulo ligeramente más grande para detectar cuando el jugador está cerca
+        proximity_rect = transition_rect.inflate(60, 60)  # 60 píxeles más grande en cada dirección
+
+        # Verificar si el rectángulo del jugador colisiona con el área de proximidad
+        near_area = proximity_rect.colliderect(player_rect)
+
+        # Dibujar el área de transición en modo debug para visualización
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 0), transition_rect, 2)
+            pygame.draw.rect(pygame.display.get_surface(), (0, 0, 255), proximity_rect, 1)  # Área de proximidad en azul
+            if near_area:
+                # Si el jugador está cerca, dibujar un indicador más visible
+                pygame.draw.rect(pygame.display.get_surface(), (255, 0, 0), proximity_rect, 1)
+                print("Jugador cerca del área de transición de PMBOKExecutionRoom")
+
+        # Si el jugador está cerca del área, guardar esta información
+        # Usamos near_area en lugar de inside_area porque el jugador no puede entrar debido a la colisión
+        self.player_in_transition_area = near_area
+
+        return near_area
+
+    def render(self, screen):
+        if self.scaled_bg:
+            screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
+        else:
+            screen.fill((0,0,0))
+
+        # Solo dibuja los rectángulos de colisión si estamos en modo debug
+        if DEBUG_MODE:
+            # Dibujar los rectángulos existentes
+            for rect in self.collision_rects:
+                pygame.draw.rect(screen, RED, rect, 2)
+
+            # Si hay un rectángulo en proceso (entre clic izquierdo y derecho)
+            if hasattr(self, 'start_pos'):
+                current_pos = pygame.mouse.get_pos()
+                preview_rect = pygame.Rect(
+                    min(self.start_pos[0], current_pos[0]),
+                    min(self.start_pos[1], current_pos[1]),
+                    abs(current_pos[0] - self.start_pos[0]),
+                    abs(current_pos[1] - self.start_pos[1])
+                )
+                pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
 
     def _check_completion(self):
-        """
-        Check if the execution phase challenges are completed.
-        """
-        # Check if all objects are in the correct state
-        all_completed = all(obj.is_completed() for obj in self.objects)
-        if all_completed:
-            self.completed = True
+        """Room is always completed"""
+        self.completed = True
 
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
+                self.start_pos = pygame.mouse.get_pos()
+            elif event.button == 3 and hasattr(self, 'start_pos'):  # Clic derecho para completar el rectángulo
+                end_pos = pygame.mouse.get_pos()
+                # Convertir a coordenadas relativas
+                rel_start_x = self.start_pos[0] - self.bg_x_offset
+                rel_start_y = self.start_pos[1] - self.bg_y_offset
+                rel_end_x = end_pos[0] - self.bg_x_offset
+                rel_end_y = end_pos[1] - self.bg_y_offset
+                print(f"Nuevo rectángulo PMBOK: ({rel_start_x}, {rel_start_y}) a ({rel_end_x}, {rel_end_y})")
 
-class PMBOKMonitoringRoom(Room):
-    """
-    Room for the Monitoring and Control phase of PMBOK.
-    """
-    def __init__(self, content):
-        """
-        Initialize the Monitoring and Control room.
+                # Crear el rectángulo (asegurando que width y height sean positivos)
+                x = min(self.start_pos[0], end_pos[0])
+                y = min(self.start_pos[1], end_pos[1])
+                width = abs(end_pos[0] - self.start_pos[0])
+                height = abs(end_pos[1] - self.start_pos[1])
 
-        Args:
-            content: Educational content for this room
-        """
-        super().__init__("PMBOK: Monitoring & Control", "Learn about project monitoring", YELLOW)
-        self.content = content
-
-        # Add objects specific to this room
-        self._setup_room()
-
-    def _setup_room(self):
-        """
-        Set up room-specific objects and challenges.
-        """
-        # Add performance tracking object
-        performance = InteractiveObject("Performance Tracking", 100, 200, 150, 100, GREEN)
-        performance.set_description("Track project performance using earned value management")
-        self.add_object(performance)
-
-        # Add change control object
-        changes = InteractiveObject("Change Control", 500, 200, 150, 100, BLUE)
-        changes.set_description("Manage project changes through proper control processes")
-        self.add_object(changes)
-
-    def _check_completion(self):
-        """
-        Check if the monitoring phase challenges are completed.
-        """
-        # Check if all objects are in the correct state
-        all_completed = all(obj.is_completed() for obj in self.objects)
-        if all_completed:
-            self.completed = True
+                self.collision_rects.append(pygame.Rect(x, y, width, height))
+                delattr(self, 'start_pos')
+        elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
+            if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
+                self.collision_rects = []
 
 
 class PMBOKClosingRoom(Room):
-    """
-    Room for the Closing phase of PMBOK.
-    """
     def __init__(self, content):
-        """
-        Initialize the Closing room.
-
-        Args:
-            content: Educational content for this room
-        """
         super().__init__("PMBOK: Closing Phase", "Learn about project closure", RED)
         self.content = content
+        self.collision_rects = []  # Lista para los rectángulos de colisión
 
-        # Add objects specific to this room
+        # Cargar y escalar la imagen de fondo una sola vez
+        bg_path = os.path.join("img", "sala_4_pmbok.png")
+        try:
+            background = pygame.image.load(bg_path).convert()
+            bg_width, bg_height = background.get_width(), background.get_height()
+            scale_factor = min(WINDOW_WIDTH / bg_width, WINDOW_HEIGHT / bg_height)
+            new_width = int(bg_width * scale_factor)
+            new_height = int(bg_height * scale_factor)
+            self.scaled_bg = pygame.transform.scale(background, (new_width, new_height))
+            self.bg_x_offset = (WINDOW_WIDTH - new_width) // 2
+            self.bg_y_offset = (WINDOW_HEIGHT - new_height) // 2
+        except Exception as e:
+            print(f"Error loading background image: {e}")
+            self.scaled_bg = None
+
         self._setup_room()
 
     def _setup_room(self):
-        """
-        Set up room-specific objects and challenges.
-        """
-        # Add final deliverable object
-        deliverable = InteractiveObject("Final Deliverables", 100, 200, 150, 100, GREEN)
-        deliverable.set_description("Verify all deliverables are complete and accepted")
-        self.add_object(deliverable)
+        """Set up room display only"""
+        self.completed = True
+        self.player_in_transition_area = False  # Inicializar variable para el área de transición
 
-        # Add lessons learned object
-        lessons = InteractiveObject("Lessons Learned", 500, 200, 150, 100, BLUE)
-        lessons.set_description("Document lessons learned for future projects")
-        self.add_object(lessons)
+        # Definir las áreas de colisión especificadas
+        self.collision_rects = [
+            # Rectángulos donde el jugador no puede acceder
+            pygame.Rect(230, 146, 376-230, 322-146),  # Rectángulo 1 (área de transición)
+            pygame.Rect(390, 309, 594-390, 477-309),  # Rectángulo 2
+            pygame.Rect(32, 394, 125-32, 521-394),    # Rectángulo 3
+            pygame.Rect(21, 141, 190-21, 370-141)     # Rectángulo 4
+        ]
+
+        # Convertir las coordenadas relativas a absolutas
+        for rect in self.collision_rects:
+            rect.x += self.bg_x_offset
+            rect.y += self.bg_y_offset
+
+    def check_collision(self, player_rect):
+        """Check if player collides with any collision rectangle"""
+        return any(rect.colliderect(player_rect) for rect in self.collision_rects)
+
+    def check_transition_area(self, player_rect):
+        """Check if player is in the transition area to next room"""
+        # Importar pygame al inicio del método para evitar errores
+        import pygame
+
+        # Usar el rectángulo especificado: (230, 146) a (376, 322) como área de transición
+        transition_rect = pygame.Rect(
+            230 + self.bg_x_offset,  # Coordenada X inicial
+            146 + self.bg_y_offset,  # Coordenada Y inicial
+            376 - 230,               # Ancho
+            322 - 146                # Alto
+        )
+
+        # Verificar si el rectángulo del jugador está cerca del borde del área de transición
+        # Creamos un rectángulo ligeramente más grande para detectar cuando el jugador está cerca
+        proximity_rect = transition_rect.inflate(60, 60)  # 60 píxeles más grande en cada dirección
+
+        # Verificar si el rectángulo del jugador colisiona con el área de proximidad
+        near_area = proximity_rect.colliderect(player_rect)
+
+        # Dibujar el área de transición en modo debug para visualización
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 0), transition_rect, 2)
+            pygame.draw.rect(pygame.display.get_surface(), (0, 0, 255), proximity_rect, 1)  # Área de proximidad en azul
+            if near_area:
+                # Si el jugador está cerca, dibujar un indicador más visible
+                pygame.draw.rect(pygame.display.get_surface(), (255, 0, 0), proximity_rect, 1)
+                print("Jugador cerca del área de transición de PMBOKClosingRoom")
+
+        # Si el jugador está cerca del área, guardar esta información
+        # Usamos near_area en lugar de inside_area porque el jugador no puede entrar debido a la colisión
+        self.player_in_transition_area = near_area
+
+        return near_area
+
+    def render(self, screen):
+        if self.scaled_bg:
+            screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
+        else:
+            screen.fill((0,0,0))
+
+        # Solo dibuja los rectángulos de colisión si estamos en modo debug
+        if DEBUG_MODE:
+            # Dibujar los rectángulos existentes
+            for rect in self.collision_rects:
+                pygame.draw.rect(screen, RED, rect, 2)
+
+            # Si hay un rectángulo en proceso (entre clic izquierdo y derecho)
+            if hasattr(self, 'start_pos'):
+                current_pos = pygame.mouse.get_pos()
+                preview_rect = pygame.Rect(
+                    min(self.start_pos[0], current_pos[0]),
+                    min(self.start_pos[1], current_pos[1]),
+                    abs(current_pos[0] - self.start_pos[0]),
+                    abs(current_pos[1] - self.start_pos[1])
+                )
+                pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
 
     def _check_completion(self):
-        """
-        Check if the closing phase challenges are completed.
-        """
-        # Check if all objects are in the correct state
-        all_completed = all(obj.is_completed() for obj in self.objects)
-        if all_completed:
-            self.completed = True
+        """Room is always completed"""
+        self.completed = True
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
+                self.start_pos = pygame.mouse.get_pos()
+            elif event.button == 3 and hasattr(self, 'start_pos'):  # Clic derecho para completar el rectángulo
+                end_pos = pygame.mouse.get_pos()
+                # Convertir a coordenadas relativas
+                rel_start_x = self.start_pos[0] - self.bg_x_offset
+                rel_start_y = self.start_pos[1] - self.bg_y_offset
+                rel_end_x = end_pos[0] - self.bg_x_offset
+                rel_end_y = end_pos[1] - self.bg_y_offset
+                print(f"Nuevo rectángulo PMBOK: ({rel_start_x}, {rel_start_y}) a ({rel_end_x}, {rel_end_y})")
+
+                # Crear el rectángulo (asegurando que width y height sean positivos)
+                x = min(self.start_pos[0], end_pos[0])
+                y = min(self.start_pos[1], end_pos[1])
+                width = abs(end_pos[0] - self.start_pos[0])
+                height = abs(end_pos[1] - self.start_pos[1])
+
+                self.collision_rects.append(pygame.Rect(x, y, width, height))
+                delattr(self, 'start_pos')
+        elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
+            if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
+                self.collision_rects = []
 
 
 # Scrum Room Classes
 class ScrumRolesRoom(Room):
-    """
-    Room for learning about Scrum roles.
-    """
     def __init__(self, content):
-        """
-        Initialize the Scrum Roles room.
-
-        Args:
-            content: Educational content for this room
-        """
-        super().__init__("Scrum: Roles", "Learn about Scrum roles", BLUE)
+        super().__init__("Scrum Roles", "Learn about the different roles in Scrum", BLACK, "blue")
         self.content = content
+        self.collision_rects = []  # Lista para los rectángulos de colisión
 
-        # Add objects specific to this room
+        # Cargar y escalar la imagen de fondo una sola vez
+        bg_path = os.path.join("img", "sala_1_scrum.png")
+        try:
+            background = pygame.image.load(bg_path).convert()
+            bg_width, bg_height = background.get_width(), background.get_height()
+            scale_factor = min(WINDOW_WIDTH / bg_width, WINDOW_HEIGHT / bg_height)
+            new_width = int(bg_width * scale_factor)
+            new_height = int(bg_height * scale_factor)
+            self.scaled_bg = pygame.transform.scale(background, (new_width, new_height))
+            self.bg_x_offset = (WINDOW_WIDTH - new_width) // 2
+            self.bg_y_offset = (WINDOW_HEIGHT - new_height) // 2
+        except Exception as e:
+            print(f"Error loading background image: {e}")
+            self.scaled_bg = None
+
         self._setup_room()
 
     def _setup_room(self):
-        """
-        Set up room-specific objects and challenges.
-        """
-        # Add Product Owner object
-        po = InteractiveObject("Product Owner", 100, 200, 150, 100, RED)
-        po.set_description("Learn about the Product Owner role and responsibilities")
-        self.add_object(po)
+        """Set up room display only"""
+        self.completed = True
 
-        # Add Scrum Master object
-        sm = InteractiveObject("Scrum Master", 300, 200, 150, 100, GREEN)
-        sm.set_description("Learn about the Scrum Master role and responsibilities")
-        self.add_object(sm)
+        # Definir las áreas de colisión usando rectángulos
+        # Las coordenadas son relativas a la imagen
+        self.collision_rects = [
+            # Rectángulos de colisión para la Sala 1
+            pygame.Rect(210, 92, 47, 123),      # Rectángulo vertical superior
+            pygame.Rect(202, 95, 189, 200),     # Mesa grande superior
+            pygame.Rect(190, 12, 203, 282),     # Área superior completa
+            pygame.Rect(394, 226, 205, 203),    # Mesa grande derecha
+            pygame.Rect(0, 122, 50, 220),       # Borde izquierdo
+            pygame.Rect(52, 126, 90, 256),      # Área izquierda media
+            pygame.Rect(143, 126, 50, 211),     # Área izquierda superior
+            pygame.Rect(86, 375, 200, 143)      # Área inferior izquierda
+        ]
 
-        # Add Development Team object
-        team = InteractiveObject("Development Team", 500, 200, 150, 100, YELLOW)
-        team.set_description("Learn about the Development Team role and responsibilities")
-        self.add_object(team)
+        # Convertir las coordenadas relativas a absolutas
+        for rect in self.collision_rects:
+            rect.x += self.bg_x_offset
+            rect.y += self.bg_y_offset
 
-    def _check_completion(self):
-        """
-        Check if the Scrum roles challenges are completed.
-        """
-        # Check if all objects are in the correct state
-        all_completed = all(obj.is_completed() for obj in self.objects)
-        if all_completed:
-            self.completed = True
+    def check_collision(self, player_rect):
+        """Check if player collides with any collision rectangle"""
+        return any(rect.colliderect(player_rect) for rect in self.collision_rects)
 
-
-class ScrumArtifactsRoom(Room):
-    """
-    Room for learning about Scrum artifacts.
-    """
-    def __init__(self, content):
-        """
-        Initialize the Scrum Artifacts room.
-
-        Args:
-            content: Educational content for this room
-        """
-        super().__init__("Scrum: Artifacts", "Learn about Scrum artifacts", GREEN)
-        self.content = content
-
-        # Add objects specific to this room
-        self._setup_room()
-
-    def _setup_room(self):
-        """
-        Set up room-specific objects and challenges.
-        """
-        # Add Product Backlog object
-        backlog = InteractiveObject("Product Backlog", 100, 200, 150, 100, BLUE)
-        backlog.set_description("Learn about the Product Backlog and how to manage it")
-        self.add_object(backlog)
-
-        # Add Sprint Backlog object
-        sprint_backlog = InteractiveObject("Sprint Backlog", 300, 200, 150, 100, RED)
-        sprint_backlog.set_description("Learn about the Sprint Backlog and how to create it")
-        self.add_object(sprint_backlog)
-
-        # Add Increment object
-        increment = InteractiveObject("Increment", 500, 200, 150, 100, YELLOW)
-        increment.set_description("Learn about the Increment and Definition of Done")
-        self.add_object(increment)
-
-    def _check_completion(self):
-        """
-        Check if the Scrum artifacts challenges are completed.
-        """
-        # Check if all objects are in the correct state
-        all_completed = all(obj.is_completed() for obj in self.objects)
-        if all_completed:
-            self.completed = True
-
-
-class ScrumEventsRoom(Room):
-    """
-    Room for learning about Scrum events.
-    """
-    def __init__(self, content):
-        """
-        Initialize the Scrum Events room.
-
-        Args:
-            content: Educational content for this room
-        """
-        super().__init__("Scrum: Events", "Learn about Scrum events", YELLOW)
-        self.content = content
-
-        # Add objects specific to this room
-        self._setup_room()
-
-    def _setup_room(self):
-        """
-        Set up room-specific objects and challenges.
-        """
-        # Add Sprint Planning object
-        planning = InteractiveObject("Sprint Planning", 100, 150, 150, 100, RED)
-        planning.set_description("Learn about Sprint Planning and how to conduct it")
-        self.add_object(planning)
-
-        # Add Daily Scrum object
-        daily = InteractiveObject("Daily Scrum", 300, 150, 150, 100, GREEN)
-        daily.set_description("Learn about the Daily Scrum and its purpose")
-        self.add_object(daily)
-
-        # Add Sprint Review object
-        review = InteractiveObject("Sprint Review", 100, 300, 150, 100, BLUE)
-        review.set_description("Learn about the Sprint Review and how to conduct it")
-        self.add_object(review)
-
-        # Add Sprint Retrospective object
-        retro = InteractiveObject("Sprint Retrospective", 300, 300, 150, 100, WHITE)
-        retro.set_description("Learn about the Sprint Retrospective and its importance")
-        self.add_object(retro)
-
-    def _check_completion(self):
-        """
-        Check if the Scrum events challenges are completed.
-        """
-        # Check if all objects are in the correct state
-        all_completed = all(obj.is_completed() for obj in self.objects)
-        if all_completed:
-            self.completed = True
-
-
-class ScrumValuesRoom(Room):
-    """
-    Room for learning about Scrum values.
-    """
-    def __init__(self, content):
-        """
-        Initialize the Scrum Values room.
-
-        Args:
-            content: Educational content for this room
-        """
-        super().__init__("Scrum: Values", "Learn about Scrum values", RED)
-        self.content = content
-
-        # Add objects specific to this room
-        self._setup_room()
-
-    def _setup_room(self):
-        """
-        Set up room-specific objects and challenges.
-        """
-        # Add Commitment object
-        commitment = InteractiveObject("Commitment", 100, 150, 120, 80, BLUE)
-        commitment.set_description("Learn about the Scrum value of Commitment")
-        self.add_object(commitment)
-
-        # Add Courage object
-        courage = InteractiveObject("Courage", 250, 150, 120, 80, GREEN)
-        courage.set_description("Learn about the Scrum value of Courage")
-        self.add_object(courage)
-
-        # Add Focus object
-        focus = InteractiveObject("Focus", 400, 150, 120, 80, YELLOW)
-        focus.set_description("Learn about the Scrum value of Focus")
-        self.add_object(focus)
-
-        # Add Openness object
-        openness = InteractiveObject("Openness", 175, 300, 120, 80, WHITE)
-        openness.set_description("Learn about the Scrum value of Openness")
-        self.add_object(openness)
-
-        # Add Respect object
-        respect = InteractiveObject("Respect", 325, 300, 120, 80, RED)
-        respect.set_description("Learn about the Scrum value of Respect")
-        self.add_object(respect)
-
-    def _check_completion(self):
-        """
-        Check if the Scrum values challenges are completed.
-        """
-        # Check if all objects are in the correct state
-        all_completed = all(obj.is_completed() for obj in self.objects)
-        if all_completed:
-            self.completed = True
-
-
-class InteractiveObject:
-    """
-    Interactive object that can be placed in rooms.
-    """
-    def __init__(self, name, x, y, width, height, color, shape="square"):
-        """
-        Initialize an interactive object.
-
-        Args:
-            name: Object name
-            x: X position
-            y: Y position
-            width: Object width
-            height: Object height
-            color: Object color
-            shape: Object shape ("square", "circle", "triangle", "diamond", "hexagon")
-        """
-        self.name = name
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.color = color
-        self.shape = shape
-        self.rect = pygame.Rect(x, y, width, height)
-        self.description = ""
-        self.completed = False
-        self.active = False
-        self.hover = False
-
-        # Visual effects
-        self.pulse_time = random.uniform(0, 2 * math.pi)
-        self.pulse_speed = random.uniform(0.03, 0.06)
-        self.pulse_amount = 0.1  # 10% size pulsing
-        self.glow_amount = 0
-        self.particles = []
-
-        # Animation
-        self.animation_offset = 0
-        self.animation_speed = 0.05
-        self.animation_time = 0
-
-        # Interaction
-        self.interaction_time = 0
-        self.interaction_duration = 60  # frames
-
-        # Fonts
-        self.font_name = assets.get_font("small")
-        self.font_desc = assets.get_font("tiny")
-
-        # Puzzle
-        self.puzzle = None
-        self.content_item = None
-        self.score = 0
-
-    def update(self):
-        """
-        Update object state.
-        """
-        # Update pulse animation
-        self.pulse_time += self.pulse_speed
-
-        # Update hover animation
-        if self.hover:
-            self.glow_amount = min(1.0, self.glow_amount + 0.1)
-        else:
-            self.glow_amount = max(0.0, self.glow_amount - 0.1)
-
-        # Update interaction animation
-        if self.interaction_time > 0:
-            self.interaction_time -= 1
-
-            # Create particles during interaction
-            if self.interaction_time % 5 == 0 and self.interaction_time > 30:
-                particle_x = self.x + self.width // 2
-                particle_y = self.y + self.height // 2
-                new_particles = create_particle_effect(
-                    particle_x, particle_y,
-                    count=2,
-                    colors=[self.color, WHITE],
-                    min_speed=0.5, max_speed=1.5,
-                    min_size=2, max_size=4,
-                    min_lifetime=10, max_lifetime=20
-                )
-                self.particles.extend(new_particles)
-
-        # Update particles
-        self.particles = update_particles(self.particles)
-
-        # Update animation
-        self.animation_time += self.animation_speed
-        self.animation_offset = math.sin(self.animation_time) * 3
-
-        # Update puzzle if active
-        if self.puzzle and self.active:
-            self.puzzle.update()
+    def check_transition_area(self, player_rect):
+        """Check if player is in the transition area to next room"""
+        transition_rect = pygame.Rect(
+            210 + self.bg_x_offset,  # Ajustar por el offset del fondo
+            92 + self.bg_y_offset,   # Ajustar por el offset del fondo
+            47,  # Ancho del área (257 - 210)
+            123  # Alto del área (215 - 92)
+        )
+        return transition_rect.colliderect(player_rect)
 
     def handle_event(self, event):
-        """
-        Handle events for the object.
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
+                self.start_pos = pygame.mouse.get_pos()
+            elif event.button == 3 and hasattr(self, 'start_pos'):  # Clic derecho para completar el rectángulo
+                end_pos = pygame.mouse.get_pos()
+                # Convertir a coordenadas relativas
+                rel_start_x = self.start_pos[0] - self.bg_x_offset
+                rel_start_y = self.start_pos[1] - self.bg_y_offset
+                rel_end_x = end_pos[0] - self.bg_x_offset
+                rel_end_y = end_pos[1] - self.bg_y_offset
+                print(f"Sala 1 - Nuevo rectángulo: ({rel_start_x}, {rel_start_y}) a ({rel_end_x}, {rel_end_y})")
 
-        Args:
-            event: Pygame event
-        """
-        # Check for mouse hover
-        if event.type == pygame.MOUSEMOTION:
-            self.hover = self.rect.collidepoint(event.pos)
+                # Crear el rectángulo (asegurando que width y height sean positivos)
+                x = min(self.start_pos[0], end_pos[0])
+                y = min(self.start_pos[1], end_pos[1])
+                width = abs(end_pos[0] - self.start_pos[0])
+                height = abs(end_pos[1] - self.start_pos[1])
 
-        # If puzzle is active, pass events to it
-        if self.puzzle and self.active:
-            self.puzzle.handle_event(event)
-            return
-
-        # Check for mouse click
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if self.rect.collidepoint(event.pos):
-                self.interaction_time = self.interaction_duration
-
-                # If we have a puzzle, activate it
-                if self.puzzle and not self.completed:
-                    self.active = True
-                    screen_rect = pygame.display.get_surface().get_rect()
-                    self.puzzle.activate(screen_rect)
-
-                    # Create interaction particles
-                    particle_x = self.x + self.width // 2
-                    particle_y = self.y + self.height // 2
-                    new_particles = create_particle_effect(
-                        particle_x, particle_y,
-                        count=10,
-                        colors=[self.color, WHITE],
-                        min_speed=0.5, max_speed=2,
-                        min_size=2, max_size=4,
-                        min_lifetime=15, max_lifetime=30
-                    )
-                    self.particles.extend(new_particles)
-                else:
-                    # Toggle active state for objects without puzzles
-                    self.active = not self.active
+                self.collision_rects.append(pygame.Rect(x, y, width, height))
+                delattr(self, 'start_pos')
+        elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
+            if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
+                self.collision_rects = []
 
     def render(self, screen):
-        """
-        Render the object.
-
-        Args:
-            screen: Pygame surface to render on
-        """
-        # Si el puzzle está activo, solo renderizar el objeto con opacidad reducida
-        # El puzzle mismo será renderizado más tarde por la clase Game para asegurar que esté en la capa superior
-        if self.puzzle and self.active and self.puzzle.active:
-            # Renderizar el objeto en el fondo con opacidad reducida
-            self._render_object(screen, alpha=100)
-            return
-
-        # Si el objeto está completado, renderizarlo con un efecto especial
-        if self.completed:
-            # Renderizar el objeto con un efecto de completado (brillo verde)
-            self._render_object(screen, completed=True)
+        if self.scaled_bg:
+            screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
         else:
-            # De lo contrario, renderizar normalmente
-            self._render_object(screen)
+            screen.fill((0,0,0))
 
-    def _render_object(self, screen, alpha=255, completed=False):
-        """
-        Render the object itself (without puzzle).
+        # Solo dibuja los rectángulos de colisión si estamos en modo debug
+        if DEBUG_MODE:
+            # Dibujar los rectángulos existentes
+            for rect in self.collision_rects:
+                pygame.draw.rect(screen, RED, rect, 2)
 
-        Args:
-            screen: Pygame surface to render on
-            alpha: Opacity (0-255)
-            completed: Whether the object is completed
-        """
-        # Calculate pulse effect
-        pulse = math.sin(self.pulse_time) * self.pulse_amount + 1.0
+            # Si hay un rectángulo en proceso (entre clic izquierdo y derecho)
+            if hasattr(self, 'start_pos'):
+                current_pos = pygame.mouse.get_pos()
+                preview_rect = pygame.Rect(
+                    min(self.start_pos[0], current_pos[0]),
+                    min(self.start_pos[1], current_pos[1]),
+                    abs(current_pos[0] - self.start_pos[0]),
+                    abs(current_pos[1] - self.start_pos[1])
+                )
+                pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
 
-        # Calculate dimensions with pulse
-        width = int(self.width * pulse)
-        height = int(self.height * pulse)
-        x = self.x + (self.width - width) // 2
-        y = self.y + (self.height - height) // 2 + int(self.animation_offset)
+        # Se ha eliminado el mensaje de texto que pedía presionar ESPACIO
+        # También se ha eliminado la flecha amarilla
 
-        # Draw shadow
-        shadow_offset = 5
-        shadow_rect = pygame.Rect(x + shadow_offset, y + shadow_offset, width, height)
+class ScrumArtifactsRoom(Room):
+    def __init__(self, content):
+        super().__init__("Scrum: Artifacts", "Learn about Scrum artifacts", GREEN)
+        self.content = content
+        self.collision_rects = []  # Lista para los rectángulos de colisión
 
-        if self.shape == "square":
-            pygame.draw.rect(screen, (*BLACK, 70), shadow_rect, border_radius=10)
-        elif self.shape == "circle":
-            pygame.draw.ellipse(screen, (*BLACK, 70), shadow_rect)
+        # Cargar y escalar la imagen de fondo una sola vez
+        bg_path = os.path.join("img", "sala_2_scrum.png")
+        try:
+            background = pygame.image.load(bg_path).convert()
+            bg_width, bg_height = background.get_width(), background.get_height()
+            scale_factor = min(WINDOW_WIDTH / bg_width, WINDOW_HEIGHT / bg_height)
+            new_width = int(bg_width * scale_factor)
+            new_height = int(bg_height * scale_factor)
+            self.scaled_bg = pygame.transform.scale(background, (new_width, new_height))
+            self.bg_x_offset = (WINDOW_WIDTH - new_width) // 2
+            self.bg_y_offset = (WINDOW_HEIGHT - new_height) // 2
+        except Exception as e:
+            print(f"Error loading background image: {e}")
+            self.scaled_bg = None
 
-        # Si el objeto está completado, dibujar un efecto de brillo alrededor
-        if completed:
-            glow_rect = pygame.Rect(x - 5, y - 5, width + 10, height + 10)
-            if self.shape == "square":
-                pygame.draw.rect(screen, (*GREEN, 150), glow_rect, border_radius=12)
-            elif self.shape == "circle":
-                pygame.draw.ellipse(screen, (*GREEN, 150), glow_rect)
+        self._setup_room()
 
-        # Get object image or draw shape
-        if self.shape in ["square", "circle", "triangle", "diamond", "hexagon"]:
-            # Try to get image from assets
-            color_name = self._get_color_name()
-            image_name = f"object_{self.shape}_{color_name}"
-            obj_image = assets.get_image(image_name)
-
-            # Scale image with pulse effect
-            scaled_image = pygame.transform.scale(obj_image, (width, height))
-
-            # Apply alpha if needed
-            if alpha < 255:
-                scaled_image.set_alpha(alpha)
-
-            screen.blit(scaled_image, (x, y))
-        else:
-            # Fallback to drawing a rectangle
-            rect = pygame.Rect(x, y, width, height)
-            color_with_alpha = (*self.color, alpha)
-            pygame.draw.rect(screen, color_with_alpha, rect, border_radius=10)
-            pygame.draw.rect(screen, (*WHITE, alpha), rect, 2, border_radius=10)
-
-        # Draw glow effect when hovering
-        if self.glow_amount > 0:
-            glow_surface = pygame.Surface((width + 20, height + 20), pygame.SRCALPHA)
-            glow_color = (*self.color, int((100 * self.glow_amount * alpha) // 255))
-            pygame.draw.rect(glow_surface, glow_color, (0, 0, width + 20, height + 20), border_radius=15)
-            screen.blit(glow_surface, (x - 10, y - 10), special_flags=pygame.BLEND_ADD)
-
-        # Draw completion indicator
-        if self.completed:
-            indicator_x = x + width - 15
-            indicator_y = y + 10
-            pygame.draw.circle(screen, (*GREEN, alpha), (indicator_x, indicator_y), 8)
-            pygame.draw.circle(screen, (*WHITE, alpha), (indicator_x, indicator_y), 8, 1)
-            pygame.draw.line(screen, (*WHITE, alpha), (indicator_x - 3, indicator_y), (indicator_x - 1, indicator_y + 3), 2)
-            pygame.draw.line(screen, (*WHITE, alpha), (indicator_x - 1, indicator_y + 3), (indicator_x + 3, indicator_y - 2), 2)
-
-            # Draw score if completed
-            if self.score > 0:
-                score_text = self.font_desc.render(f"{self.score} pts", True, WHITE)
-                score_rect = score_text.get_rect(center=(self.x + self.width // 2, self.y + self.height + 40))
-                pygame.draw.rect(screen, (*GREEN, 180), score_rect.inflate(10, 6), border_radius=5)
-                screen.blit(score_text, score_rect)
-
-        # Draw the name
-        name_text = self.font_name.render(self.name, True, WHITE)
-        name_rect = name_text.get_rect(center=(self.x + self.width // 2, self.y + self.height + 20))
-
-        # Draw name background for better readability
-        bg_rect = name_rect.copy()
-        bg_rect.inflate_ip(10, 6)
-        pygame.draw.rect(screen, (*CHARCOAL, 180), bg_rect, border_radius=5)
-
-        screen.blit(name_text, name_rect)
-
-        # Draw particles
-        render_particles(screen, self.particles)
-
-        # If active but not showing puzzle, draw the description tooltip
-        if self.active and (not self.puzzle or self.completed):
-            draw_tooltip(
-                screen,
-                self.description,
-                self.font_desc,
-                self.x + self.width // 2,
-                self.y - 30,
-                padding=10,
-                bg_color=CHARCOAL,
-                text_color=WHITE,
-                border_color=self.color,
-                border_width=2,
-                radius=5,
-                max_width=300
-            )
-
-    def _get_color_name(self):
-        """
-        Get the name of the color closest to self.color.
-
-        Returns:
-            String name of the color
-        """
-        colors = {
-            "red": RED,
-            "green": GREEN,
-            "blue": BLUE,
-            "yellow": YELLOW,
-            "purple": PURPLE,
-            "cyan": CYAN,
-            "orange": ORANGE,
-            "white": WHITE
-        }
-
-        # Find the closest color by Euclidean distance
-        min_distance = float('inf')
-        closest_color = "white"
-
-        for name, rgb in colors.items():
-            # Calculate color distance
-            r_diff = self.color[0] - rgb[0]
-            g_diff = self.color[1] - rgb[1]
-            b_diff = self.color[2] - rgb[2]
-            distance = math.sqrt(r_diff**2 + g_diff**2 + b_diff**2)
-
-            if distance < min_distance:
-                min_distance = distance
-                closest_color = name
-
-        return closest_color
-
-    def set_description(self, description):
-        """
-        Set the object description.
-
-        Args:
-            description: Object description
-        """
-        self.description = description
-
-    def set_content(self, content_item, difficulty=1):
-        """
-        Set the educational content for this object.
-
-        Args:
-            content_item: Dictionary containing educational content
-            difficulty: Puzzle difficulty (1-5)
-        """
-        self.content_item = content_item
-
-        # Import here to avoid circular imports
-        from puzzles import create_puzzle_from_content
-
-        # Create a puzzle based on the content
-        self.puzzle = create_puzzle_from_content(content_item, difficulty)
-
-        # Set up puzzle completion callback
-        self.puzzle.set_success_callback(self._on_puzzle_completed)
-
-    def _on_puzzle_completed(self, score):
-        """
-        Callback for when the puzzle is completed.
-
-        Args:
-            score: Puzzle score
-        """
+    def _setup_room(self):
+        """Set up room display only"""
         self.completed = True
-        self.score = score
-        self.active = False  # Desactivar el objeto interactivo cuando se completa el puzzle
 
-        # Create completion particles
-        particle_x = self.x + self.width // 2
-        particle_y = self.y + self.height // 2
-        new_particles = create_particle_effect(
-            particle_x, particle_y,
-            count=30,
-            colors=[self.color, WHITE, YELLOW, GREEN],
-            min_speed=1, max_speed=3,
-            min_size=3, max_size=6,
-            min_lifetime=30, max_lifetime=60
+        # Definir las áreas de colisión usando rectángulos
+        self.collision_rects = [
+            pygame.Rect(186, 105, 199, 245),  # Rectángulo central (área de transición)
+            pygame.Rect(388, 62, 102, 288),   # Rectángulo derecho superior
+            pygame.Rect(478, 245, 121, 193),  # Rectángulo derecho inferior
+            pygame.Rect(4, 271, 184, 176)     # Rectángulo izquierdo inferior
+        ]
+
+        # Convertir las coordenadas relativas a absolutas
+        for rect in self.collision_rects:
+            rect.x += self.bg_x_offset
+            rect.y += self.bg_y_offset
+
+    def check_collision(self, player_rect):
+        """Check if player collides with any collision rectangle"""
+        return any(rect.colliderect(player_rect) for rect in self.collision_rects)
+
+    def check_transition_area(self, player_rect):
+        """Check if player is in the transition area to next room"""
+        transition_rect = pygame.Rect(
+            186 + self.bg_x_offset,  # Ajustar por el offset del fondo
+            105 + self.bg_y_offset,  # Ajustar por el offset del fondo
+            199,  # Ancho del área (385 - 186)
+            245   # Alto del área (350 - 105)
         )
-        self.particles.extend(new_particles)
+        return transition_rect.colliderect(player_rect)
 
-    def is_completed(self):
-        """
-        Check if the object's challenge is completed.
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
+                self.start_pos = pygame.mouse.get_pos()
+            elif event.button == 3 and hasattr(self, 'start_pos'):  # Clic derecho para completar el rectángulo
+                end_pos = pygame.mouse.get_pos()
+                # Convertir a coordenadas relativas
+                rel_start_x = self.start_pos[0] - self.bg_x_offset
+                rel_start_y = self.start_pos[1] - self.bg_y_offset
+                rel_end_x = end_pos[0] - self.bg_x_offset
+                rel_end_y = end_pos[1] - self.bg_y_offset
+                print(f"Nuevo rectángulo: ({rel_start_x}, {rel_start_y}) a ({rel_end_x}, {rel_end_y})")
 
-        Returns:
-            Boolean indicating if the object is completed
-        """
-        return self.completed
+                # Crear el rectángulo (asegurando que width y height sean positivos)
+                x = min(self.start_pos[0], end_pos[0])
+                y = min(self.start_pos[1], end_pos[1])
+                width = abs(end_pos[0] - self.start_pos[0])
+                height = abs(end_pos[1] - self.start_pos[1])
+
+                self.collision_rects.append(pygame.Rect(x, y, width, height))
+                delattr(self, 'start_pos')
+        elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
+            if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
+                self.collision_rects = []
+
+    def render(self, screen):
+        if self.scaled_bg:
+            screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
+        else:
+            screen.fill((0,0,0))
+
+        # Solo dibuja los rectángulos de colisión si estamos en modo debug
+        if DEBUG_MODE:
+            # Dibujar los rectángulos existentes
+            for rect in self.collision_rects:
+                pygame.draw.rect(screen, RED, rect, 2)
+
+            # Si hay un rectángulo en proceso (entre clic izquierdo y derecho)
+            if hasattr(self, 'start_pos'):
+                current_pos = pygame.mouse.get_pos()
+                preview_rect = pygame.Rect(
+                    min(self.start_pos[0], current_pos[0]),
+                    min(self.start_pos[1], current_pos[1]),
+                    abs(current_pos[0] - self.start_pos[0]),
+                    abs(current_pos[1] - self.start_pos[1])
+                )
+                pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
+
+class ScrumEventsRoom(Room):
+    def __init__(self, content):
+        super().__init__("Scrum: Events", "Learn about Scrum events", YELLOW)
+        self.content = content
+        self.collision_rects = []  # Lista para los rectángulos de colisión
+
+        # Cargar y escalar la imagen de fondo una sola vez
+        bg_path = os.path.join("img", "sala_3_scrum.png")
+        try:
+            background = pygame.image.load(bg_path).convert()
+            bg_width, bg_height = background.get_width(), background.get_height()
+            scale_factor = min(WINDOW_WIDTH / bg_width, WINDOW_HEIGHT / bg_height)
+            new_width = int(bg_width * scale_factor)
+            new_height = int(bg_height * scale_factor)
+            self.scaled_bg = pygame.transform.scale(background, (new_width, new_height))
+            self.bg_x_offset = (WINDOW_WIDTH - new_width) // 2
+            self.bg_y_offset = (WINDOW_HEIGHT - new_height) // 2
+        except Exception as e:
+            print(f"Error loading background image: {e}")
+            self.scaled_bg = None
+
+        self._setup_room()
+
+    def _setup_room(self):
+        """Set up room display only"""
+        self.completed = True
+        self.player_in_transition_area = False  # Inicializar variable para el área de transición
+
+        # Definir las áreas de colisión usando los rectángulos especificados
+        self.collision_rects = [
+            # Rectángulos donde el jugador no puede acceder
+            pygame.Rect(182, 24, 594-182, 287-24),     # Rectángulo superior
+            pygame.Rect(11, 417, 181-11, 510-417),     # Rectángulo inferior izquierdo
+            pygame.Rect(415, 288, 594-415, 427-288),   # Rectángulo derecho
+            pygame.Rect(15, 89, 178-15, 272-89)        # Rectángulo izquierdo
+        ]
+
+        # Convertir las coordenadas relativas a absolutas
+        for rect in self.collision_rects:
+            rect.x += self.bg_x_offset
+            rect.y += self.bg_y_offset
+
+    def check_collision(self, player_rect):
+        """Check if player collides with any collision rectangle"""
+        return any(rect.colliderect(player_rect) for rect in self.collision_rects)
+
+    def check_transition_area(self, player_rect):
+        """Check if player is in the transition area to next room (para finalizar el juego)"""
+        # Importar pygame al inicio del método para evitar el error UnboundLocalError
+        import pygame
+
+        # Usar el rectángulo especificado: (15, 89) a (178, 272)
+        transition_rect = pygame.Rect(
+            15 + self.bg_x_offset,   # Coordenada X inicial
+            89 + self.bg_y_offset,   # Coordenada Y inicial
+            178 - 15,                # Ancho
+            272 - 89                 # Alto
+        )
+
+        # Calcular el centro del jugador
+        player_center_x = player_rect.x + player_rect.width // 2
+        player_center_y = player_rect.y + player_rect.height // 2
+
+        # Verificar si el centro del jugador está dentro del área de transición
+        inside_area = (transition_rect.x <= player_center_x <= transition_rect.x + transition_rect.width and
+                       transition_rect.y <= player_center_y <= transition_rect.y + transition_rect.height)
+
+        # Dibujar el área de transición en modo debug para visualización
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 0), transition_rect, 2)
+            if inside_area:
+                # Si el jugador está dentro, dibujar un indicador más visible
+                pygame.draw.rect(pygame.display.get_surface(), (255, 0, 0), transition_rect, 1)
+
+        # Si el jugador está dentro del área, guardar esta información para mostrar un mensaje
+        if inside_area:
+            self.player_in_transition_area = True
+            # Imprimir mensaje de depuración
+            if DEBUG_MODE:
+                print("Jugador en área de transición de ScrumEventsRoom")
+        else:
+            self.player_in_transition_area = False
+
+        return inside_area
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
+                self.start_pos = pygame.mouse.get_pos()
+            elif event.button == 3 and hasattr(self, 'start_pos'):  # Clic derecho para completar el rectángulo
+                end_pos = pygame.mouse.get_pos()
+                # Convertir a coordenadas relativas
+                rel_start_x = self.start_pos[0] - self.bg_x_offset
+                rel_start_y = self.start_pos[1] - self.bg_y_offset
+                rel_end_x = end_pos[0] - self.bg_x_offset
+                rel_end_y = end_pos[1] - self.bg_y_offset
+                print(f"Nuevo rectángulo: ({rel_start_x}, {rel_start_y}) a ({rel_end_x}, {rel_end_y})")
+
+                # Crear el rectángulo (asegurando que width y height sean positivos)
+                x = min(self.start_pos[0], end_pos[0])
+                y = min(self.start_pos[1], end_pos[1])
+                width = abs(end_pos[0] - self.start_pos[0])
+                height = abs(end_pos[1] - self.start_pos[1])
+
+                self.collision_rects.append(pygame.Rect(x, y, width, height))
+                delattr(self, 'start_pos')
+        elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
+            if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
+                self.collision_rects = []
+
+    def render(self, screen):
+        if self.scaled_bg:
+            screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
+        else:
+            screen.fill((0,0,0))
+
+        # Solo dibuja los rectángulos de colisión si estamos en modo debug
+        if DEBUG_MODE:
+            # Dibujar los rectángulos existentes
+            for rect in self.collision_rects:
+                pygame.draw.rect(screen, RED, rect, 2)
+
+            # Si hay un rectángulo en proceso (entre clic izquierdo y derecho)
+            if hasattr(self, 'start_pos'):
+                current_pos = pygame.mouse.get_pos()
+                preview_rect = pygame.Rect(
+                    min(self.start_pos[0], current_pos[0]),
+                    min(self.start_pos[1], current_pos[1]),
+                    abs(current_pos[0] - self.start_pos[0]),
+                    abs(current_pos[1] - self.start_pos[1])
+                )
+                pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
+
+        # Se ha eliminado el mensaje de texto que pedía presionar ESPACIO
+        # También se ha eliminado la flecha amarilla

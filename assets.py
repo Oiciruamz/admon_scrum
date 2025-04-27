@@ -21,6 +21,13 @@ class AssetManager:
         self.animations = {}
         self.initialized = False
 
+        # Initialize pygame font module
+        if not pygame.font.get_init():
+            pygame.font.init()
+
+        # Load fonts
+        self._load_fonts()
+
     def initialize(self):
         """
         Initialize assets after pygame.display is initialized.
@@ -72,69 +79,49 @@ class AssetManager:
         except Exception as e:
             print(f"Error al cargar la imagen de fondo: {e}")
 
-        # Cargar el sprite sheet del personaje (mono con traje)
-        try:
-            # Cargar el sprite sheet completo
-            sprite_sheet = load_image("img/mono_traje.png", None, True)
+        # Cargar el sprite sheet del personaje (mono con traje) sin animación hacia abajo
+        sprite_sheet = load_image("img/mono_traje.png", None, True)
+        if sprite_sheet is None:
+            raise ValueError("No se pudo cargar el sprite sheet del personaje")
+        # Obtener dimensiones del sprite sheet
+        sheet_width = sprite_sheet.get_width()
+        sheet_height = sprite_sheet.get_height()
+        frame_width = sheet_width // 3  # 3 columnas
+        frame_height = sheet_height // 2  # 2 filas
+        self.animations["player_down"] = []
+        # Usar el primer frame como imagen estática del jugador
+        frame = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
+        frame.fill((0, 0, 0, 0))
+        frame.blit(sprite_sheet, (0, 0), (0, 0, frame_width, frame_height))
+        frame = pygame.transform.scale(frame, (PLAYER_WIDTH, PLAYER_HEIGHT))
+        self.images["player"] = frame
 
-            if sprite_sheet is None:
-                raise ValueError("No se pudo cargar el sprite sheet del personaje")
-
-            # Obtener dimensiones del sprite sheet
-            sheet_width = sprite_sheet.get_width()
-            sheet_height = sprite_sheet.get_height()
-
-            # Imprimir información de depuración
-            print(f"Dimensiones del sprite sheet: {sheet_width}x{sheet_height}")
-
-            # Definir dimensiones de cada frame (basado en la imagen proporcionada)
-            # La imagen tiene 6 frames: 3 en la primera fila y 3 en la segunda
-            frame_width = sheet_width // 3  # 3 columnas
-            frame_height = sheet_height // 2  # 2 filas
-            print(f"Dimensiones de cada frame: {frame_width}x{frame_height}")
-
-            # Crear diccionarios para almacenar las animaciones por dirección
-            self.animations["player_down"] = []
-            self.animations["player_up"] = []
-            self.animations["player_left"] = []
-            self.animations["player_right"] = []
-
-            # Extraer los frames individuales
-            # Primera fila - frames para animaciones hacia abajo y arriba
-            # Frame 1: Mirando al frente (down)
-            front_frame = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
-            front_frame.fill((0, 0, 0, 0))  # Limpiar la superficie
-            front_frame.blit(sprite_sheet, (0, 0), (0, 0, frame_width, frame_height))
-            front_frame = pygame.transform.scale(front_frame, (PLAYER_WIDTH, PLAYER_HEIGHT))
-            self.animations["player_down"].append(front_frame)
-
-            # Frame 2 y 3: Mirando hacia atrás (up) - dos frames de animación
-            for i in range(1, 3):
-                back_frame = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
-                back_frame.fill((0, 0, 0, 0))  # Limpiar la superficie
-                back_frame.blit(sprite_sheet, (0, 0), (i * frame_width, 0, frame_width, frame_height))
-                back_frame = pygame.transform.scale(back_frame, (PLAYER_WIDTH, PLAYER_HEIGHT))
-                self.animations["player_up"].append(back_frame)
-
-            # Segunda fila - frames para animación hacia la izquierda
-            for i in range(3):
-                left_frame = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
-                left_frame.fill((0, 0, 0, 0))  # Limpiar la superficie
-                left_frame.blit(sprite_sheet, (0, 0), (i * frame_width, frame_height, frame_width, frame_height))
-                left_frame = pygame.transform.scale(left_frame, (PLAYER_WIDTH, PLAYER_HEIGHT))
-                self.animations["player_left"].append(left_frame)
-
-                # Crear frames para la derecha volteando horizontalmente los frames de la izquierda
-                right_frame = pygame.transform.flip(left_frame, True, False)
-                self.animations["player_right"].append(right_frame)
-
-            # Usar el primer frame como imagen estática del jugador
-            self.images["player"] = self.animations["player_down"][0]
-
-            print("Sprite sheet del personaje cargado y dividido correctamente")
-        except Exception as e:
-            print(f"Error al cargar el sprite sheet del personaje: {e}")
-            # Si hay un error, se usará el placeholder creado en create_placeholder_images
+        # Cargar el sprite sheet original para las otras direcciones
+        sprite_sheet = load_image("img/mono_traje.png", None, True)
+        if sprite_sheet is None:
+            raise ValueError("No se pudo cargar el sprite sheet del personaje para otras direcciones")
+        sheet_width = sprite_sheet.get_width()
+        sheet_height = sprite_sheet.get_height()
+        frame_width = sheet_width // 3
+        frame_height = sheet_height // 2
+        self.animations["player_up"] = []
+        for i in range(1, 3):
+            back_frame = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
+            back_frame.fill((0, 0, 0, 0))
+            back_frame.blit(sprite_sheet, (0, 0), (i * frame_width, 0, frame_width, frame_height))
+            back_frame = pygame.transform.scale(back_frame, (PLAYER_WIDTH, PLAYER_HEIGHT))
+            self.animations["player_up"].append(back_frame)
+        self.animations["player_left"] = []
+        self.animations["player_right"] = []
+        for i in range(3):
+            left_frame = pygame.Surface((frame_width, frame_height), pygame.SRCALPHA)
+            left_frame.fill((0, 0, 0, 0))
+            left_frame.blit(sprite_sheet, (0, 0), (i * frame_width, frame_height, frame_width, frame_height))
+            left_frame = pygame.transform.scale(left_frame, (PLAYER_WIDTH, PLAYER_HEIGHT))
+            self.animations["player_left"].append(left_frame)
+            right_frame = pygame.transform.flip(left_frame, True, False)
+            self.animations["player_right"].append(right_frame)
+        print("Sprite sheets del personaje cargados y divididos correctamente")
 
     def initialize_fonts(self):
         """
@@ -157,6 +144,14 @@ class AssetManager:
         self.fonts["medium_bold"] = pygame.font.SysFont("Arial", UI_FONT_SIZE_MEDIUM, bold=True)
         self.fonts["small_bold"] = pygame.font.SysFont("Arial", UI_FONT_SIZE_SMALL, bold=True)
         self.fonts["tiny_bold"] = pygame.font.SysFont("Arial", UI_FONT_SIZE_TINY, bold=True)
+
+    def _load_fonts(self):
+        """
+        Load fonts into the assets manager.
+        """
+        self.fonts["stardew_large"] = pygame.font.Font("assets/fonts/Stardew_Valley.ttf", 72)
+        self.fonts["stardew_medium"] = pygame.font.Font("assets/fonts/Stardew_Valley.ttf", 36)
+        self.fonts["stardew_small"] = pygame.font.Font("assets/fonts/Stardew_Valley.ttf", 24)
 
     def create_placeholder_images(self):
         """

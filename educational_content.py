@@ -27,18 +27,6 @@ def get_pmbok_content():
                     "name": "Business Case",
                     "description": "A documented economic feasibility study used to establish the validity of the benefits of a selected component lacking sufficient definition."
                 }
-            ],
-            "quiz_questions": [
-                {
-                    "question": "What document formally authorizes a project?",
-                    "options": ["Project Charter", "Business Case", "Scope Statement", "Project Plan"],
-                    "correct_answer": "Project Charter"
-                },
-                {
-                    "question": "Who approves the Project Charter?",
-                    "options": ["Project Manager", "Sponsor", "Team Members", "Stakeholders"],
-                    "correct_answer": "Sponsor"
-                }
             ]
         },
         
@@ -58,28 +46,6 @@ def get_pmbok_content():
                 {
                     "name": "Risk Management Plan",
                     "description": "A component of the project management plan that describes how risk management activities will be structured and performed."
-                }
-            ],
-            "quiz_questions": [
-                {
-                    "question": "What is the purpose of a Work Breakdown Structure (WBS)?",
-                    "options": [
-                        "To assign resources to tasks",
-                        "To decompose project deliverables into smaller components",
-                        "To schedule project activities",
-                        "To identify project risks"
-                    ],
-                    "correct_answer": "To decompose project deliverables into smaller components"
-                },
-                {
-                    "question": "Which of the following is NOT typically included in project planning?",
-                    "options": [
-                        "Schedule development",
-                        "Budget estimation",
-                        "Project execution",
-                        "Risk identification"
-                    ],
-                    "correct_answer": "Project execution"
                 }
             ]
         },
@@ -101,28 +67,6 @@ def get_pmbok_content():
                     "name": "Communications Management",
                     "description": "The processes required to ensure timely and appropriate planning, collection, creation, distribution, storage, retrieval, management, control, monitoring, and ultimate disposition of project information."
                 }
-            ],
-            "quiz_questions": [
-                {
-                    "question": "What is the main focus of the Execution phase?",
-                    "options": [
-                        "Planning project activities",
-                        "Completing the work defined in the project plan",
-                        "Monitoring project progress",
-                        "Closing the project"
-                    ],
-                    "correct_answer": "Completing the work defined in the project plan"
-                },
-                {
-                    "question": "Which of the following is a key responsibility during project execution?",
-                    "options": [
-                        "Creating the project charter",
-                        "Developing the WBS",
-                        "Managing the project team",
-                        "Closing procurement contracts"
-                    ],
-                    "correct_answer": "Managing the project team"
-                }
             ]
         },
         
@@ -142,28 +86,6 @@ def get_pmbok_content():
                 {
                     "name": "Performance Reporting",
                     "description": "The process of collecting and distributing performance information, including status reports, progress measurements, and forecasts."
-                }
-            ],
-            "quiz_questions": [
-                {
-                    "question": "What is the purpose of Earned Value Management?",
-                    "options": [
-                        "To manage project resources",
-                        "To measure project performance and progress",
-                        "To identify project stakeholders",
-                        "To develop the project schedule"
-                    ],
-                    "correct_answer": "To measure project performance and progress"
-                },
-                {
-                    "question": "Which of the following is NOT a key process in the Monitoring and Control phase?",
-                    "options": [
-                        "Controlling changes",
-                        "Monitoring risks",
-                        "Creating the project charter",
-                        "Verifying scope"
-                    ],
-                    "correct_answer": "Creating the project charter"
                 }
             ]
         },
@@ -185,32 +107,9 @@ def get_pmbok_content():
                     "name": "Administrative Closure",
                     "description": "The process of finalizing all activities across all project management process groups to formally complete the project or phase."
                 }
-            ],
-            "quiz_questions": [
-                {
-                    "question": "What is the main purpose of the Closing phase?",
-                    "options": [
-                        "To plan project activities",
-                        "To execute project work",
-                        "To monitor project progress",
-                        "To formally complete the project"
-                    ],
-                    "correct_answer": "To formally complete the project"
-                },
-                {
-                    "question": "Which document captures knowledge gained during a project for future reference?",
-                    "options": [
-                        "Project Charter",
-                        "Lessons Learned",
-                        "Work Breakdown Structure",
-                        "Risk Register"
-                    ],
-                    "correct_answer": "Lessons Learned"
-                }
             ]
         }
     ]
-
 
 def get_scrum_content():
     """
@@ -237,23 +136,6 @@ def get_scrum_content():
                     "name": "Development Team",
                     "description": "Consists of professionals who do the work of delivering a potentially releasable Increment of 'Done' product at the end of each Sprint."
                 }
-            ],
-            "quiz_questions": [
-                {
-                    "question": "Who is responsible for managing the Product Backlog?",
-                    "options": ["Scrum Master", "Product Owner", "Development Team", "Project Manager"],
-                    "correct_answer": "Product Owner"
-                },
-                {
-                    "question": "What is the primary responsibility of the Scrum Master?",
-                    "options": [
-                        "Managing the team",
-                        "Promoting and supporting Scrum",
-                        "Developing the product",
-                        "Setting project deadlines"
-                    ],
-                    "correct_answer": "Promoting and supporting Scrum"
-                }
             ]
         },
         
@@ -273,28 +155,6 @@ def get_scrum_content():
                 {
                     "name": "Increment",
                     "description": "The sum of all the Product Backlog items completed during a Sprint and the value of the increments of all previous Sprints."
-                }
-            ],
-            "quiz_questions": [
-                {
-                    "question": "What is the Product Backlog?",
-                    "options": [
-                        "A list of tasks for the current Sprint",
-                        "An ordered list of everything needed in the product",
-                        "A list of completed features",
-                        "A report of project progress"
-                    ],
-                    "correct_answer": "An ordered list of everything needed in the product"
-                },
-                {
-                    "question": "What is included in the Sprint Backlog?",
-                    "options": [
-                        "All items in the Product Backlog",
-                        "Selected Product Backlog items and a plan for delivering them",
-                        "A list of all project requirements",
-                        "Completed work from previous Sprints"
-                    ],
-                    "correct_answer": "Selected Product Backlog items and a plan for delivering them"
                 }
             ]
         },
@@ -323,68 +183,6 @@ def get_scrum_content():
                 {
                     "name": "Sprint Retrospective",
                     "description": "An opportunity for the Scrum Team to inspect itself and create a plan for improvements to be enacted during the next Sprint."
-                }
-            ],
-            "quiz_questions": [
-                {
-                    "question": "What is the maximum duration of a Sprint?",
-                    "options": ["One week", "Two weeks", "One month", "Three months"],
-                    "correct_answer": "One month"
-                },
-                {
-                    "question": "What is the purpose of the Daily Scrum?",
-                    "options": [
-                        "To report progress to the Product Owner",
-                        "To synchronize activities and plan for the next 24 hours",
-                        "To update the Sprint Backlog",
-                        "To review completed work"
-                    ],
-                    "correct_answer": "To synchronize activities and plan for the next 24 hours"
-                }
-            ]
-        },
-        
-        # Scrum Values
-        {
-            "title": "Scrum Values",
-            "description": "When the values of commitment, courage, focus, openness, and respect are embodied and lived by the Scrum Team, the Scrum pillars of transparency, inspection, and adaptation come to life.",
-            "key_concepts": [
-                {
-                    "name": "Commitment",
-                    "description": "The Scrum Team commits to achieving its goals and to supporting each other."
-                },
-                {
-                    "name": "Courage",
-                    "description": "The Scrum Team members have courage to do the right thing and work on tough problems."
-                },
-                {
-                    "name": "Focus",
-                    "description": "Everyone focuses on the work of the Sprint and the goals of the Scrum Team."
-                },
-                {
-                    "name": "Openness",
-                    "description": "The Scrum Team and its stakeholders agree to be open about all the work and the challenges with performing the work."
-                },
-                {
-                    "name": "Respect",
-                    "description": "Scrum Team members respect each other to be capable, independent people."
-                }
-            ],
-            "quiz_questions": [
-                {
-                    "question": "Which of the following is NOT one of the five Scrum values?",
-                    "options": ["Commitment", "Courage", "Efficiency", "Respect"],
-                    "correct_answer": "Efficiency"
-                },
-                {
-                    "question": "How do Scrum values relate to Scrum pillars?",
-                    "options": [
-                        "They are unrelated concepts",
-                        "When values are embodied, pillars come to life",
-                        "Pillars replace values in modern Scrum",
-                        "Values are more important than pillars"
-                    ],
-                    "correct_answer": "When values are embodied, pillars come to life"
                 }
             ]
         }

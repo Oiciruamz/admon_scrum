@@ -7,7 +7,7 @@ import random
 import math
 from settings import *
 from player import Player
-from room import RoomManager
+from room import RoomManager, ScrumRolesRoom, ScrumArtifactsRoom, ScrumEventsRoom, PMBOKInitiationRoom, PMBOKPlanningRoom, PMBOKExecutionRoom, PMBOKClosingRoom
 from ui import UI
 from timer import Timer
 from assets import assets
@@ -41,9 +41,9 @@ class Game:
         self.time_bonus = 0
 
         # Load fonts
-        self.font_large = pygame.font.SysFont("Arial", 48)
-        self.font_medium = pygame.font.SysFont("Arial", 36)
-        self.font_small = pygame.font.SysFont("Arial", 24)
+        self.font_large = pygame.font.Font("assets/fonts/Stardew_Valley.ttf", 48)
+        self.font_medium = pygame.font.Font("assets/fonts/Stardew_Valley.ttf", 36)
+        self.font_small = pygame.font.Font("assets/fonts/Stardew_Valley.ttf", 24)
 
     def handle_event(self, event):
         """
@@ -76,40 +76,111 @@ class Game:
         elif self.state == STATE_GAME:
             self.player.update()
             current_room = self.room_manager.get_current_room()
+            self.player.current_room = current_room
             current_room.update()
             self.timer.update()
-
-            # Update UI
             self.ui.update()
+
+            # Verificar si se ha presionado la tecla de espacio para interactuar
+            if self.player.is_interacting():
+                # Verificar si el jugador está en un área de transición
+                in_transition_area = False
+                if hasattr(current_room, 'check_transition_area'):
+                    in_transition_area = current_room.check_transition_area(self.player.rect)
+
+                # Si está en un área de transición y presiona espacio
+                if in_transition_area:
+                    # Si es la sala 1, 2 o 3 de SCRUM, o la sala 1, 2 o 3 de PMBOK, ir a la siguiente sala
+                    if (isinstance(current_room, ScrumRolesRoom) or
+                        isinstance(current_room, ScrumArtifactsRoom) or
+                        isinstance(current_room, PMBOKInitiationRoom) or
+                        isinstance(current_room, PMBOKPlanningRoom) or
+                        isinstance(current_room, PMBOKExecutionRoom)) and self.room_manager.has_next_room():
+                        # Incrementar contador de salas completadas
+                        self.completed_rooms += 1
+
+                        # Cambiar a la siguiente sala
+                        self.room_manager.go_to_next_room()
+                        current_room = self.room_manager.get_current_room()
+                        self.player.current_room = current_room
+
+                        # Posicionar al jugador según la sala de destino
+                        if isinstance(current_room, ScrumArtifactsRoom):  # Si va hacia la Sala 2 de SCRUM
+                            self.player.rect.x = WINDOW_WIDTH - self.player.width - 20  # 20 píxeles desde el borde derecho
+                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 20  # 20 píxeles desde el borde inferior
+                        elif isinstance(current_room, PMBOKPlanningRoom):  # Si va hacia la Sala 2 de PMBOK
+                            self.player.rect.x = WINDOW_WIDTH // 2
+                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
+                        elif isinstance(current_room, PMBOKExecutionRoom):  # Si va hacia la Sala 3 de PMBOK
+                            self.player.rect.x = WINDOW_WIDTH // 2
+                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
+                        elif isinstance(current_room, PMBOKClosingRoom):  # Si va hacia la Sala 4 de PMBOK
+                            self.player.rect.x = WINDOW_WIDTH // 2
+                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
+                        else:  # Si va hacia la Sala 3 de SCRUM
+                            self.player.rect.x = WINDOW_WIDTH // 2
+                            self.player.rect.y = WINDOW_HEIGHT - 100
+
+                        # Actualizar también las coordenadas x e y del jugador para mantener consistencia
+                        self.player.x = self.player.rect.x
+                        self.player.y = self.player.rect.y
+
+                    # Si es la sala 4 de PMBOK o la sala 3 de SCRUM, finalizar el juego
+                    elif isinstance(current_room, PMBOKClosingRoom) or isinstance(current_room, ScrumEventsRoom):
+                        # Incrementar contador de salas completadas
+                        self.completed_rooms += 1
+
+                        # Calculate final score based on time left and rooms completed
+                        time_left = self.timer.get_time_left()
+                        self.time_bonus = int(time_left * 10)  # 10 points per second remaining
+                        self.total_score = (self.completed_rooms * 1000) + self.time_bonus  # 1000 points per room + time bonus
+                        self.high_score = max(self.high_score, self.total_score)
+                        self.state = STATE_VICTORY
+                        print("¡Juego completado! Victoria.")
+
+                        # Posicionar al jugador según la sala de destino
+                        if isinstance(current_room, ScrumArtifactsRoom):  # Si va hacia la Sala 2 de SCRUM
+                            self.player.rect.x = WINDOW_WIDTH - self.player.width - 20  # 20 píxeles desde el borde derecho
+                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 20  # 20 píxeles desde el borde inferior
+                        elif isinstance(current_room, PMBOKPlanningRoom):  # Si va hacia la Sala 2 de PMBOK
+                            self.player.rect.x = WINDOW_WIDTH // 2
+                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
+                        elif isinstance(current_room, PMBOKExecutionRoom):  # Si va hacia la Sala 3 de PMBOK
+                            self.player.rect.x = WINDOW_WIDTH // 2
+                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
+                        elif isinstance(current_room, PMBOKClosingRoom):  # Si va hacia la Sala 4 de PMBOK
+                            self.player.rect.x = WINDOW_WIDTH // 2
+                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
+                        else:  # Si va hacia la Sala 3 de SCRUM
+                            self.player.rect.x = WINDOW_WIDTH // 2
+                            self.player.rect.y = WINDOW_HEIGHT - 100
+
+                        # Actualizar también las coordenadas x e y del jugador para mantener consistencia
+                        self.player.x = self.player.rect.x
+                        self.player.y = self.player.rect.y
+
+                        # Imprimir mensaje de depuración
+                        print(f"Transición a la siguiente sala: {current_room.__class__.__name__}")
+
+                    # Si es la última sala (ScrumEventsRoom), finalizar el juego
+                    elif isinstance(current_room, ScrumEventsRoom):
+                        # Incrementar contador de salas completadas
+                        self.completed_rooms += 1
+
+                        # Calculate final score based on time left and rooms completed
+                        time_left = self.timer.get_time_left()
+                        self.time_bonus = int(time_left * 10)  # 10 points per second remaining
+                        self.total_score = (self.completed_rooms * 1000) + self.time_bonus  # 1000 points per room + time bonus
+                        self.high_score = max(self.high_score, self.total_score)
+                        self.state = STATE_VICTORY
+                        print("¡Juego completado! Victoria.")
+
+                # Reiniciar el estado de interacción para evitar transiciones inmediatas
+                self.player.interacting = False
 
             # Check if time is up
             if self.timer.is_time_up():
                 self.state = STATE_GAME_OVER
-
-            # Check if player has completed the current room
-            if current_room.is_completed():
-                # Calculate room score and time bonus
-                room_score = 0
-                for obj in current_room.objects:
-                    room_score += obj.score
-
-                # Add time bonus based on remaining time
-                time_left = self.timer.get_time_left()
-                time_bonus = int(time_left * 2)  # 2 points per second remaining
-                self.time_bonus += time_bonus
-
-                # Update total score
-                self.total_score += room_score + time_bonus
-                self.completed_rooms += 1
-
-                # Update high score
-                self.high_score = max(self.high_score, self.total_score)
-
-                if self.room_manager.has_next_room():
-                    self.room_manager.go_to_next_room()
-                    self.timer.reset()
-                else:
-                    self.state = STATE_VICTORY
 
     def render(self):
         """
@@ -139,8 +210,10 @@ class Game:
             path: Selected path (PMBOK or Scrum)
         """
         self.selected_path = path
-        self.player = Player()
         self.room_manager = RoomManager(path)
+        self.player = Player()
+        # Set initial room
+        self.player.current_room = self.room_manager.get_current_room()
         self.timer = Timer(ROOM_TIME_LIMIT)
         self.state = STATE_GAME
 
@@ -224,18 +297,16 @@ class Game:
         # Get current room
         current_room = self.room_manager.get_current_room()
 
-        # Check if any puzzle is active
-        puzzle_active = False
-        for obj in current_room.objects:
-            if obj.puzzle and obj.active and obj.puzzle.active:  # Verificar que el puzzle esté realmente activo
-                puzzle_active = True
-                break
+        # Update player's current room reference
+        self.player.current_room = current_room
 
-        # Only pass events to player if no puzzle is active
-        if not puzzle_active:
-            self.player.handle_event(event)
+        # Ya no usamos la transición al tocar el borde superior
+        # Ahora todas las transiciones se manejan con el área de transición y la tecla ESPACIO
 
-        # Always pass events to room (which will handle puzzles)
+        # Handle player events
+        self.player.handle_event(event)
+
+        # Handle room events
         current_room.handle_event(event)
 
     def _handle_end_event(self, event):
@@ -256,12 +327,10 @@ class Game:
         """
         Render the menu screen in Stardew Valley style.
         """
-        # Fill background with a gradient sky color
-        for y in range(WINDOW_HEIGHT):
-            # Create a gradient from darker blue at top to lighter blue at bottom
-            ratio = y / WINDOW_HEIGHT
-            color = color_lerp(SDV_BLUE, SDV_CREAM, ratio * 0.7)
-            pygame.draw.line(self.screen, color, (0, y), (WINDOW_WIDTH, y))
+        # Load and scale the background image to fit the window size
+        background = pygame.image.load("img/remix_2.png")
+        background = pygame.transform.scale(background, (WINDOW_WIDTH, WINDOW_HEIGHT))
+        self.screen.blit(background, (0, 0))
 
         # Draw decorative elements
         # Top and bottom borders
@@ -269,7 +338,7 @@ class Game:
         draw_decorative_border(self.screen, border_rect, SDV_BROWN, width=3, corner_size=30)
 
         # Draw title with stylized text
-        title_font = pygame.font.SysFont("Arial", 60, bold=True)
+        title_font = assets.fonts["stardew_large"]
         draw_stardew_title(
             self.screen,
             "Escape Room",
@@ -280,7 +349,7 @@ class Game:
             shadow_color=SDV_BROWN
         )
 
-        subtitle_font = pygame.font.SysFont("Arial", 36, bold=True)
+        subtitle_font = assets.fonts["stardew_medium"]
         draw_stardew_title(
             self.screen,
             "PMBOK vs Scrum",
@@ -365,9 +434,9 @@ class Game:
         """
         title = self.font_large.render("Instructions", True, WHITE)
         instruction1 = self.font_small.render("Use arrow keys to move the player", True, WHITE)
-        instruction2 = self.font_small.render("Press SPACE to interact with objects", True, WHITE)
-        instruction3 = self.font_small.render("Complete challenges in each room within the time limit", True, WHITE)
-        instruction4 = self.font_small.render("Learn about project management methodologies as you play", True, WHITE)
+        instruction2 = self.font_small.render("Move between rooms by reaching the top of the screen", True, WHITE)
+        instruction3 = self.font_small.render("Explore each room to learn about project management", True, WHITE)
+        instruction4 = self.font_small.render("Progress through all rooms to complete your path", True, WHITE)
         back_text = self.font_small.render("Press ESC or ENTER to go back", True, WHITE)
 
         title_rect = title.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 4))
@@ -388,18 +457,21 @@ class Game:
         """
         Render the game screen.
         """
-        # Dibujar la imagen de fondo
-        background = assets.get_image("common_background")
-        self.screen.blit(background, (0, 0))
+        # Ya no se dibuja el fondo común aquí
+        # background = assets.get_image("common_background")
+        # self.screen.blit(background, (0, 0))
 
-        # Mantener la lógica del juego sin renderizar la sala
+        # Renderizar la sala actual (que puede tener su propio fondo)
+        current_room = self.room_manager.get_current_room()
+        if current_room:
+            current_room.render(self.screen)
 
-        # Renderizar al jugador directamente sobre el fondo
+        # Renderizar al jugador directamente sobre la sala
         if self.player:
             self.player.render(self.screen)
 
-        # Render UI elements (opcional)
-        # self.ui.render_game_ui(self.screen, self.timer)
+        # Render UI elements
+        self.ui.render_game_ui(self.screen, self.timer)
 
     def _render_game_over(self):
         """

@@ -18,11 +18,23 @@ class Player:
         """
         self.width = PLAYER_WIDTH
         self.height = PLAYER_HEIGHT
-        self.x = WINDOW_WIDTH // 2 - self.width // 2
-        self.y = WINDOW_HEIGHT // 2 - self.height // 2
+        # Cambiar posición inicial al borde inferior derecho
+        self.x = WINDOW_WIDTH - self.width - 50  # 50 píxeles desde el borde derecho
+        self.y = WINDOW_HEIGHT - self.height - 50  # 50 píxeles desde el borde inferior
         self.speed = PLAYER_SPEED
         self.base_speed = PLAYER_SPEED
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+
+        # Crear un rectángulo de colisión más pequeño para los pies
+        # Ajustamos el tamaño del rectángulo de colisión para que sea proporcional al nuevo tamaño del jugador
+        feet_width = self.width // 3  # El rectángulo de los pies será 1/3 del ancho del sprite
+        feet_height = self.height // 4  # Y 1/4 de la altura
+        self.feet_rect = pygame.Rect(
+            self.x + (self.width - feet_width) // 2,  # Centrado horizontalmente
+            self.y + self.height - feet_height,  # En la parte inferior del sprite
+            feet_width,
+            feet_height
+        )
 
         # Movement flags
         self.moving_left = False
@@ -174,7 +186,19 @@ class Player:
             dx = -dx
             dy = -dy
 
-        # Update position
+        # Crear un rect temporal para probar el movimiento
+        temp_feet_rect = self.feet_rect.copy()
+        temp_feet_rect.x = int(self.x + dx + (self.width - self.feet_rect.width) // 2)
+        temp_feet_rect.y = int(self.y + dy + self.height - self.feet_rect.height)
+
+        # Verificar si la nueva posición colisiona con algún área prohibida
+        if hasattr(self, 'current_room') and self.current_room:
+            if hasattr(self.current_room, 'check_collision'):
+                if self.current_room.check_collision(temp_feet_rect):
+                    # Si hay colisión, no permitir el movimiento
+                    return
+
+        # Si no hay colisión, actualizar la posición
         self.x += dx
         self.y += dy
 
@@ -182,9 +206,11 @@ class Player:
         self.x = max(0, min(self.x, WINDOW_WIDTH - self.width))
         self.y = max(0, min(self.y, WINDOW_HEIGHT - self.height))
 
-        # Update rectangle position
+        # Update rectangle positions
         self.rect.x = int(self.x)
         self.rect.y = int(self.y)
+        self.feet_rect.x = int(self.x + (self.width - self.feet_rect.width) // 2)
+        self.feet_rect.y = int(self.y + self.height - self.feet_rect.height)
 
         # Create movement particles if moving
         if self.is_moving and random.random() < 0.1:
@@ -250,6 +276,10 @@ class Player:
 
         # Draw particles
         render_particles(screen, self.particles)
+
+        # Draw feet collision box if in debug mode
+        if DEBUG_MODE:
+            pygame.draw.rect(screen, (0, 255, 0), self.feet_rect, 2)
 
         # Draw status effect indicators
         self._render_status_effects(screen)

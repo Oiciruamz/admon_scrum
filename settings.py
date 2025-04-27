@@ -2,8 +2,11 @@
 Settings and constants for the Escape Room game.
 """
 
+# Debug settings
+DEBUG_MODE = True  # Set to True to show collision areas and other debug info
+
 # Game window settings
-WINDOW_WIDTH = 800
+WINDOW_WIDTH = 600
 WINDOW_HEIGHT = 600
 WINDOW_TITLE = "Escape Room: PMBOK vs Scrum"
 FPS = 60
@@ -44,10 +47,10 @@ SDV_PURPLE = (147, 112, 219)    # Soft purple
 SDV_PINK = (255, 182, 193)      # Light pink
 
 # Player settings
-PLAYER_SPEED = 6
-PLAYER_WIDTH = 96
-PLAYER_HEIGHT = 96
-PLAYER_ANIMATION_SPEED = 0.2
+PLAYER_SPEED = 5
+PLAYER_WIDTH = 150  # Aumentado de 115 a 150 (30% más)
+PLAYER_HEIGHT = 150  # Aumentado de 115 a 150 (30% más)
+PLAYER_ANIMATION_SPEED = 0.1
 
 # Room settings
 ROOM_TIME_LIMIT = 300  # 5 minutes in seconds
