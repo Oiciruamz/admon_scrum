@@ -8,7 +8,7 @@ import pygame
 from settings import *
 from educational_content import get_pmbok_content, get_scrum_content
 from assets import assets
-from utils import draw_text, draw_panel, draw_progress_bar, draw_tooltip, create_particle_effect, update_particles, render_particles
+from utils import draw_text, draw_panel, draw_progress_bar, draw_tooltip
 from settings import DEBUG_MODE
 
 class Room:
@@ -320,6 +320,200 @@ class RoomManager:
 
 
 # PMBOK Room Classes
+class PMBOKActivity:
+    """
+    Clase para manejar la actividad educativa de PMBOK.
+    """
+    def __init__(self):
+        self.active = False
+        self.font_large = assets.get_font("large")
+        self.font_medium = assets.get_font("medium")
+        self.font_small = assets.get_font("small")
+
+        # Elementos de la actividad
+        self.items = [
+            {"text": "Crear un videojuego educativo en 2D, tipo escape room, que facilite el aprendizaje de las metodologías PMBOK y Scrum a través de desafíos interactivos y mecánicas de juego atractivas.", "position": "left", "correct_target": "Definición del proyecto"},
+            {"text": "El proyecto abarcará el desarrollo de un videojuego educativo en 2D, estructurado en dos caminos de aprendizaje (PMBOK y Scrum), cada uno con un conjunto de salas que representan diferentes etapas de las metodologías.", "position": "left", "correct_target": "Alcance del proyecto"},
+            {"text": "Interfaz de usuario intuitiva con un menú de selección de caminos. Dos rutas de juego: PMBOK: 4 salas con desafíos relacionados con las fases de la metodología. Scrum: 3 salas con ejercicios sobre planificación y ejecución ágil.", "position": "left", "correct_target": "Alcance del producto"}
+        ]
+
+        self.targets = [
+            {"name": "Definición del proyecto", "position": "right", "matched": False},
+            {"name": "Alcance del proyecto", "position": "right", "matched": False},
+            {"name": "Alcance del producto", "position": "right", "matched": False}
+        ]
+
+        self.selected_item = None
+        self.completed = False
+        self.show_result = False
+        self.result_message = ""
+        self.result_color = GREEN
+
+    def activate(self):
+        """Activar la actividad"""
+        self.active = True
+        self.completed = False
+        self.show_result = False
+        # Reiniciar el estado de los elementos
+        for item in self.items:
+            item["matched"] = False
+        for target in self.targets:
+            target["matched"] = False
+
+    def deactivate(self):
+        """Desactivar la actividad"""
+        self.active = False
+
+    def handle_event(self, event):
+        """Manejar eventos de la actividad"""
+        if not self.active:
+            return
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Clic izquierdo
+                mouse_pos = pygame.mouse.get_pos()
+
+                # Si ya se completó la actividad y se muestra el resultado
+                if self.show_result:
+                    # Verificar si se hizo clic en el botón de cerrar
+                    close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 50, WINDOW_HEIGHT - 100, 100, 40)
+                    if close_rect.collidepoint(mouse_pos):
+                        self.deactivate()
+                        return
+
+                # Verificar si se seleccionó un elemento
+                if not self.selected_item:
+                    for i, item in enumerate(self.items):
+                        item_rect = self._get_item_rect(i)
+                        if item_rect.collidepoint(mouse_pos) and not item.get("matched", False):
+                            self.selected_item = i
+                            break
+                else:
+                    # Verificar si se seleccionó un objetivo
+                    for i, target in enumerate(self.targets):
+                        target_rect = self._get_target_rect(i)
+                        if target_rect.collidepoint(mouse_pos) and not target.get("matched", False):
+                            # Comprobar si la relación es correcta
+                            if self.items[self.selected_item]["correct_target"] == target["name"]:
+                                # Relación correcta
+                                self.items[self.selected_item]["matched"] = True
+                                target["matched"] = True
+
+                                # Verificar si se completó la actividad
+                                if all(item.get("matched", False) for item in self.items):
+                                    self.completed = True
+                                    self.show_result = True
+                                    self.result_message = "¡Excelente! Has relacionado correctamente todos los elementos."
+                                    self.result_color = GREEN
+                            else:
+                                # Relación incorrecta
+                                self.show_result = True
+                                self.result_message = "Relación incorrecta. Inténtalo de nuevo."
+                                self.result_color = RED
+
+                            self.selected_item = None
+                            break
+
+                    # Si se hizo clic en cualquier otro lugar, deseleccionar
+                    self.selected_item = None
+
+    def render(self, screen):
+        """Renderizar la actividad"""
+        if not self.active:
+            return
+
+        # Dibujar el fondo semitransparente
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 200))  # Negro semitransparente
+        screen.blit(overlay, (0, 0))
+
+        # Dibujar el panel principal
+        panel_width = 500
+        panel_height = 400
+        panel_x = (WINDOW_WIDTH - panel_width) // 2
+        panel_y = (WINDOW_HEIGHT - panel_height) // 2
+
+        draw_panel(screen, panel_x, panel_y, panel_width, panel_height, CHARCOAL, WHITE, 2, 15)
+
+        # Dibujar el título
+        draw_text(screen, "Relaciona los elementos con su contexto", self.font_medium, WHITE, WINDOW_WIDTH // 2, panel_y + 30)
+
+        # Dibujar los elementos a relacionar
+        for i, item in enumerate(self.items):
+            item_rect = self._get_item_rect(i)
+            color = GREEN if item.get("matched", False) else WHITE
+            pygame.draw.rect(screen, color, item_rect, 2, border_radius=5)
+
+            # Dibujar el texto del elemento (ajustado para que quepa en el rectángulo)
+            text = item["text"]
+            words = text.split()
+            lines = []
+            current_line = []
+
+            for word in words:
+                test_line = " ".join(current_line + [word])
+                if self.font_small.size(test_line)[0] < item_rect.width - 20:
+                    current_line.append(word)
+                else:
+                    lines.append(" ".join(current_line))
+                    current_line = [word]
+
+            if current_line:
+                lines.append(" ".join(current_line))
+
+            for j, line in enumerate(lines):
+                y_pos = item_rect.y + 15 + j * 20
+                if y_pos < item_rect.y + item_rect.height - 10:
+                    draw_text(screen, line, self.font_small, color, item_rect.x + item_rect.width // 2, y_pos)
+
+            # Si este elemento está seleccionado, dibujarlo con un borde más grueso
+            if self.selected_item == i:
+                pygame.draw.rect(screen, YELLOW, item_rect, 4, border_radius=5)
+
+        # Dibujar los objetivos
+        for i, target in enumerate(self.targets):
+            target_rect = self._get_target_rect(i)
+            color = GREEN if target.get("matched", False) else WHITE
+            pygame.draw.rect(screen, color, target_rect, 2, border_radius=5)
+            draw_text(screen, target["name"], self.font_small, color, target_rect.centerx, target_rect.centery)
+
+        # Si se está mostrando el resultado
+        if self.show_result:
+            result_rect = pygame.Rect(WINDOW_WIDTH // 2 - 200, WINDOW_HEIGHT // 2 - 50, 400, 100)
+            draw_panel(screen, result_rect.x, result_rect.y, result_rect.width, result_rect.height, CHARCOAL, self.result_color, 2, 10)
+            draw_text(screen, self.result_message, self.font_small, WHITE, result_rect.centerx, result_rect.centery)
+
+            # Botón de cerrar si la actividad está completada
+            if self.completed:
+                close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 50, WINDOW_HEIGHT - 100, 100, 40)
+                draw_panel(screen, close_rect.x, close_rect.y, close_rect.width, close_rect.height, CHARCOAL, GREEN, 2, 5)
+                draw_text(screen, "Cerrar", self.font_small, WHITE, close_rect.centerx, close_rect.centery)
+
+    def _get_item_rect(self, index):
+        """Obtener el rectángulo para un elemento"""
+        panel_width = 500
+        panel_x = (WINDOW_WIDTH - panel_width) // 2
+
+        item_width = 220
+        item_height = 100
+        item_x = panel_x + 30
+        item_y = (WINDOW_HEIGHT - panel_width) // 2 + 70 + index * (item_height + 20)
+
+        return pygame.Rect(item_x, item_y, item_width, item_height)
+
+    def _get_target_rect(self, index):
+        """Obtener el rectángulo para un objetivo"""
+        panel_width = 500
+        panel_x = (WINDOW_WIDTH - panel_width) // 2
+
+        target_width = 180
+        target_height = 40
+        target_x = panel_x + panel_width - target_width - 30
+        target_y = (WINDOW_HEIGHT - panel_width) // 2 + 100 + index * (target_height + 40)
+
+        return pygame.Rect(target_x, target_y, target_width, target_height)
+
+
 class PMBOKInitiationRoom(Room):
     def __init__(self, content):
         super().__init__("PMBOK: Initiation Phase", "Learn about project initiation", GRAY, "gray")
@@ -341,12 +535,36 @@ class PMBOKInitiationRoom(Room):
             print(f"Error loading background image: {e}")
             self.scaled_bg = None
 
+        # Cargar la imagen de la misión
+        mission_path = os.path.join("img", "MISION.png")
+        try:
+            mission_img = pygame.image.load(mission_path).convert_alpha()
+            self.mission_img = pygame.transform.scale(mission_img, (120, 120))  # Tamaño más grande para mejor visibilidad
+        except Exception as e:
+            print(f"Error loading mission image: {e}")
+            self.mission_img = None
+
+        # Crear la actividad educativa
+        self.activity = PMBOKActivity()
+
+        # Área interactiva para la misión
+        self.mission_rect = pygame.Rect(2, 378, 190-2, 562-378)
+        self.player_near_mission = False
+
+        # Variables para la animación de flotación
+        self.animation_time = 0
+        self.float_amplitude = 10  # Amplitud de la flotación (en píxeles)
+        self.float_speed = 0.05    # Velocidad de la flotación
+        self.rotation_amplitude = 5  # Amplitud de la rotación (en grados)
+        self.glow_value = 0        # Valor para el efecto de brillo
+
         self._setup_room()
 
     def _setup_room(self):
         """Set up room display only"""
         self.completed = True
         self.player_in_transition_area = False  # Inicializar variable para el área de transición
+        self.player_near_mission = False  # Inicializar variable para el área de la misión
 
         # Definir las áreas de colisión especificadas
         self.collision_rects = [
@@ -403,11 +621,120 @@ class PMBOKInitiationRoom(Room):
 
         return inside_area
 
+    def check_mission_area(self, player_rect):
+        """Check if player is near the mission area"""
+        # Importar pygame al inicio del método para evitar errores
+        import pygame
+
+        # Convertir las coordenadas relativas a absolutas para el área de la misión
+        mission_rect_abs = pygame.Rect(
+            self.mission_rect.x + self.bg_x_offset,
+            self.mission_rect.y + self.bg_y_offset,
+            self.mission_rect.width,
+            self.mission_rect.height
+        )
+
+        # Crear un rectángulo más grande para detectar proximidad
+        proximity_rect = mission_rect_abs.inflate(100, 100)  # 100 píxeles más grande en cada dirección para facilitar la interacción
+
+        # Verificar si el jugador está cerca del área de la misión
+        near_mission = proximity_rect.colliderect(player_rect)
+
+        # Dibujar el área de la misión en modo debug
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 255), mission_rect_abs, 2)
+            pygame.draw.rect(pygame.display.get_surface(), (0, 200, 200), proximity_rect, 1)
+            if near_mission:
+                pygame.draw.rect(pygame.display.get_surface(), (255, 255, 0), proximity_rect, 1)
+                print("Jugador cerca del área de la misión")
+
+        # Actualizar el estado
+        self.player_near_mission = near_mission
+
+        return near_mission
+
     def render(self, screen):
         if self.scaled_bg:
             screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
         else:
             screen.fill((0,0,0))
+
+        # Dibujar la imagen de la misión con animación
+        if self.mission_img:
+            # Calcular la posición base para centrar la imagen en el rectángulo
+            base_x = self.mission_rect.x + self.bg_x_offset + (self.mission_rect.width - self.mission_img.get_width()) // 2
+            base_y = self.mission_rect.y + self.bg_y_offset + (self.mission_rect.height - self.mission_img.get_height()) // 2
+
+            # Aplicar efecto de flotación usando funciones sinusoidales
+            float_offset_y = math.sin(self.animation_time * self.float_speed) * self.float_amplitude
+
+            # Posición final con efecto de flotación
+            mission_pos = (base_x, base_y + float_offset_y)
+
+            # Aplicar efecto de brillo si el jugador está cerca
+            if self.player_near_mission:
+                # Crear una superficie para el halo
+                glow_width = self.mission_img.get_width() + 20
+                glow_height = self.mission_img.get_height() + 20
+                glow_surface = pygame.Surface((glow_width, glow_height), pygame.SRCALPHA)
+
+                # Dibujar un halo alrededor de la imagen
+                glow_color = (255, 255, 100, int(100 * self.glow_value))  # Amarillo con transparencia variable
+                pygame.draw.circle(
+                    glow_surface,
+                    glow_color,
+                    (glow_width // 2, glow_height // 2),
+                    min(glow_width, glow_height) // 2 - 5
+                )
+
+                # Dibujar el halo
+                glow_pos = (mission_pos[0] - 10, mission_pos[1] - 10)
+                screen.blit(glow_surface, glow_pos)
+
+            # Dibujar la imagen principal
+            screen.blit(self.mission_img, mission_pos)
+
+            # Efecto simple de partículas si el jugador está cerca
+            if self.player_near_mission and random.random() < 0.03:  # 3% de probabilidad por frame
+                # Dibujar pequeños destellos alrededor de la imagen
+                for _ in range(2):  # Crear solo 2 partículas a la vez para evitar sobrecarga
+                    # Posición aleatoria alrededor de la imagen
+                    particle_x = mission_pos[0] + random.randint(0, self.mission_img.get_width())
+                    particle_y = mission_pos[1] + random.randint(0, self.mission_img.get_height())
+
+                    # Tamaño aleatorio
+                    particle_size = random.randint(1, 3)
+
+                    # Color aleatorio (amarillo/dorado)
+                    particle_color = (255, 255, 100, random.randint(100, 200))
+
+                    # Dibujar la partícula
+                    pygame.draw.circle(screen, particle_color, (particle_x, particle_y), particle_size)
+
+            # Si el jugador está cerca de la misión, mostrar un indicador visual
+            if self.player_near_mission and not self.activity.active:
+                # Dibujar un texto indicando que se puede interactuar
+                font = assets.get_font("small")
+
+                # Color pulsante simple
+                pulse_color = YELLOW
+                if self.glow_value > 0.5:
+                    pulse_color = WHITE
+
+                # Renderizar el texto
+                text_surface = font.render("Presiona ESPACIO para interactuar", True, pulse_color)
+
+                # Posicionar el texto con un ligero movimiento vertical
+                y_offset = int(math.sin(self.animation_time * 0.1) * 3)  # Movimiento más sutil
+                text_rect = text_surface.get_rect(center=(
+                    mission_pos[0] + self.mission_img.get_width() // 2,
+                    mission_pos[1] - 20 + y_offset
+                ))
+
+                screen.blit(text_surface, text_rect)
+
+        # Renderizar la actividad si está activa
+        self.activity.render(screen)
 
         # Solo dibuja los rectángulos de colisión si estamos en modo debug
         if DEBUG_MODE:
@@ -426,11 +753,26 @@ class PMBOKInitiationRoom(Room):
                 )
                 pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
 
+    def update(self):
+        """Update room state"""
+        super().update()  # Llamar al método update de la clase padre
+
+        # Actualizar el tiempo de animación
+        self.animation_time += 1
+
+        # Actualizar el valor de brillo (oscila entre 0 y 1)
+        self.glow_value = (math.sin(self.animation_time * 0.05) + 1) / 2
+
     def _check_completion(self):
         """Room is always completed"""
         self.completed = True
 
     def handle_event(self, event):
+        # Si la actividad está activa, manejar sus eventos
+        if self.activity.active:
+            self.activity.handle_event(event)
+            return
+
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
                 self.start_pos = pygame.mouse.get_pos()
@@ -454,6 +796,12 @@ class PMBOKInitiationRoom(Room):
         elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
             if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
                 self.collision_rects = []
+            elif event.key == pygame.K_SPACE:  # Tecla espacio para interactuar con la misión
+                # Verificar si el jugador está cerca del área de la misión
+                if self.player_near_mission:
+                    # Activar la actividad educativa
+                    self.activity.activate()
+                    print("Actividad educativa activada")
 
 
 class PMBOKPlanningRoom(Room):

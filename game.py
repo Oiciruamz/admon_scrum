@@ -81,6 +81,11 @@ class Game:
             self.timer.update()
             self.ui.update()
 
+            # Verificar si el jugador está cerca del área de la misión (solo para PMBOKInitiationRoom)
+            if isinstance(current_room, PMBOKInitiationRoom):
+                if hasattr(current_room, 'check_mission_area'):
+                    current_room.check_mission_area(self.player.rect)
+
             # Verificar si se ha presionado la tecla de espacio para interactuar
             if self.player.is_interacting():
                 # Verificar si el jugador está en un área de transición
