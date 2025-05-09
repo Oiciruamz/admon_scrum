@@ -330,11 +330,11 @@ class PMBOKActivity:
         self.font_medium = assets.get_font("medium")
         self.font_small = assets.get_font("small")
 
-        # Elementos de la actividad
+        # Elementos de la actividad - Textos resumidos para mejor visualización
         self.items = [
-            {"text": "Crear un videojuego educativo en 2D, tipo escape room, que facilite el aprendizaje de las metodologías PMBOK y Scrum a través de desafíos interactivos y mecánicas de juego atractivas.", "position": "left", "correct_target": "Definición del proyecto"},
-            {"text": "El proyecto abarcará el desarrollo de un videojuego educativo en 2D, estructurado en dos caminos de aprendizaje (PMBOK y Scrum), cada uno con un conjunto de salas que representan diferentes etapas de las metodologías.", "position": "left", "correct_target": "Alcance del proyecto"},
-            {"text": "Interfaz de usuario intuitiva con un menú de selección de caminos. Dos rutas de juego: PMBOK: 4 salas con desafíos relacionados con las fases de la metodología. Scrum: 3 salas con ejercicios sobre planificación y ejecución ágil.", "position": "left", "correct_target": "Alcance del producto"}
+            {"text": "Crear un videojuego educativo en 2D, tipo escape room, para aprender metodologías PMBOK y Scrum mediante desafíos interactivos.", "position": "left", "correct_target": "Definición del proyecto"},
+            {"text": "Desarrollo de un juego con dos caminos de aprendizaje (PMBOK y Scrum), cada uno con salas que representan etapas de las metodologías.", "position": "left", "correct_target": "Alcance del proyecto"},
+            {"text": "Interfaz intuitiva con menú de selección. PMBOK: 4 salas con desafíos. Scrum: 3 salas con ejercicios de planificación ágil.", "position": "left", "correct_target": "Alcance del producto"}
         ]
 
         self.targets = [
@@ -373,21 +373,36 @@ class PMBOKActivity:
             if event.button == 1:  # Clic izquierdo
                 mouse_pos = pygame.mouse.get_pos()
 
-                # Si ya se completó la actividad y se muestra el resultado
+                # Si se muestra un resultado (éxito o error)
                 if self.show_result:
-                    # Verificar si se hizo clic en el botón de cerrar
-                    close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 50, WINDOW_HEIGHT - 100, 100, 40)
-                    if close_rect.collidepoint(mouse_pos):
-                        self.deactivate()
+                    # Si la actividad está completada, mostrar el botón de cerrar
+                    if self.completed:
+                        close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT // 2 + 100, 120, 45)
+                        if close_rect.collidepoint(mouse_pos):
+                            self.deactivate()
+                            return
+                    else:
+                        # Si es un mensaje de error, cualquier clic lo cierra
+                        # Añadir un botón específico para cerrar el mensaje de error
+                        error_close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 40, WINDOW_HEIGHT // 2 + 30, 80, 30)
+                        if error_close_rect.collidepoint(mouse_pos):
+                            self.show_result = False
+                            return
+
+                    # Si se hace clic en cualquier otro lugar, también cerrar el mensaje de error
+                    # pero solo si no está completada la actividad
+                    if not self.completed:
+                        self.show_result = False
                         return
 
                 # Verificar si se seleccionó un elemento
-                if not self.selected_item:
+                if self.selected_item is None:
                     for i, item in enumerate(self.items):
                         item_rect = self._get_item_rect(i)
                         if item_rect.collidepoint(mouse_pos) and not item.get("matched", False):
                             self.selected_item = i
-                            break
+                            print(f"Elemento seleccionado: {i}")
+                            return  # Salir después de seleccionar un elemento
                 else:
                     # Verificar si se seleccionó un objetivo
                     for i, target in enumerate(self.targets):
@@ -396,6 +411,7 @@ class PMBOKActivity:
                             # Comprobar si la relación es correcta
                             if self.items[self.selected_item]["correct_target"] == target["name"]:
                                 # Relación correcta
+                                print(f"Relación correcta: {self.items[self.selected_item]['text']} -> {target['name']}")
                                 self.items[self.selected_item]["matched"] = True
                                 target["matched"] = True
 
@@ -407,15 +423,18 @@ class PMBOKActivity:
                                     self.result_color = GREEN
                             else:
                                 # Relación incorrecta
+                                print(f"Relación incorrecta: {self.items[self.selected_item]['text']} -> {target['name']}")
                                 self.show_result = True
                                 self.result_message = "Relación incorrecta. Inténtalo de nuevo."
                                 self.result_color = RED
 
                             self.selected_item = None
-                            break
+                            return  # Salir después de intentar una relación
 
                     # Si se hizo clic en cualquier otro lugar, deseleccionar
-                    self.selected_item = None
+                    if not any(self._get_target_rect(i).collidepoint(mouse_pos) for i in range(len(self.targets))):
+                        print("Deseleccionando elemento")
+                        self.selected_item = None
 
     def render(self, screen):
         """Renderizar la actividad"""
@@ -427,22 +446,26 @@ class PMBOKActivity:
         overlay.fill((0, 0, 0, 200))  # Negro semitransparente
         screen.blit(overlay, (0, 0))
 
-        # Dibujar el panel principal
-        panel_width = 500
-        panel_height = 400
+        # Dibujar el panel principal (20% más grande)
+        panel_width = 600  # Antes 500
+        panel_height = 480  # Antes 400
         panel_x = (WINDOW_WIDTH - panel_width) // 2
         panel_y = (WINDOW_HEIGHT - panel_height) // 2
 
-        draw_panel(screen, panel_x, panel_y, panel_width, panel_height, CHARCOAL, WHITE, 2, 15)
+        draw_panel(screen, panel_x, panel_y, panel_width, panel_height, CHARCOAL, WHITE, 3, 15)
 
-        # Dibujar el título
-        draw_text(screen, "Relaciona los elementos con su contexto", self.font_medium, WHITE, WINDOW_WIDTH // 2, panel_y + 30)
+        # Dibujar el título con una fuente más pequeña
+        font_title = pygame.font.Font(None, 22)  # Fuente más pequeña para el título
+        title_text = font_title.render("Relaciona los elementos con su contexto", True, WHITE)
+        title_rect = title_text.get_rect(center=(WINDOW_WIDTH // 2, panel_y + 40))
+        screen.blit(title_text, title_rect)
 
         # Dibujar los elementos a relacionar
         for i, item in enumerate(self.items):
             item_rect = self._get_item_rect(i)
             color = GREEN if item.get("matched", False) else WHITE
-            pygame.draw.rect(screen, color, item_rect, 2, border_radius=5)
+            # Dibujar con borde más grueso y más redondeado
+            pygame.draw.rect(screen, color, item_rect, 3, border_radius=10)
 
             # Dibujar el texto del elemento (ajustado para que quepa en el rectángulo)
             text = item["text"]
@@ -450,9 +473,12 @@ class PMBOKActivity:
             lines = []
             current_line = []
 
+            # Usar una fuente más pequeña para el texto
+            font_to_use = pygame.font.Font(None, 14)  # Reducir el tamaño de la fuente a 14
+
             for word in words:
                 test_line = " ".join(current_line + [word])
-                if self.font_small.size(test_line)[0] < item_rect.width - 20:
+                if font_to_use.size(test_line)[0] < item_rect.width - 20:
                     current_line.append(word)
                 else:
                     lines.append(" ".join(current_line))
@@ -461,55 +487,133 @@ class PMBOKActivity:
             if current_line:
                 lines.append(" ".join(current_line))
 
-            for j, line in enumerate(lines):
-                y_pos = item_rect.y + 15 + j * 20
-                if y_pos < item_rect.y + item_rect.height - 10:
-                    draw_text(screen, line, self.font_small, color, item_rect.x + item_rect.width // 2, y_pos)
+            # Calcular la altura total del texto con espaciado adecuado para fuente pequeña
+            line_height = 16  # Reducir el espaciado entre líneas para fuente pequeña
+            text_height = len(lines) * line_height
+            start_y = item_rect.y + (item_rect.height - text_height) // 2  # Centrar verticalmente
 
-            # Si este elemento está seleccionado, dibujarlo con un borde más grueso
+            # Dibujar cada línea de texto
+            for j, line in enumerate(lines):
+                y_pos = start_y + j * line_height
+                if y_pos < item_rect.y + item_rect.height - 10:
+                    # Crear una superficie de texto
+                    text_surface = font_to_use.render(line, True, color)
+                    # Centrar horizontalmente
+                    text_rect = text_surface.get_rect(center=(item_rect.x + item_rect.width // 2, y_pos))
+                    # Dibujar el texto
+                    screen.blit(text_surface, text_rect)
+
+            # Si este elemento está seleccionado, dibujarlo con un borde más grueso y del mismo radio
             if self.selected_item == i:
-                pygame.draw.rect(screen, YELLOW, item_rect, 4, border_radius=5)
+                pygame.draw.rect(screen, YELLOW, item_rect, 5, border_radius=10)
 
         # Dibujar los objetivos
         for i, target in enumerate(self.targets):
             target_rect = self._get_target_rect(i)
             color = GREEN if target.get("matched", False) else WHITE
-            pygame.draw.rect(screen, color, target_rect, 2, border_radius=5)
-            draw_text(screen, target["name"], self.font_small, color, target_rect.centerx, target_rect.centery)
+            pygame.draw.rect(screen, color, target_rect, 2, border_radius=8)  # Borde más redondeado
+
+            # Usar una fuente más pequeña y centrar mejor el texto
+            font_target = pygame.font.Font(None, 16)  # Fuente más pequeña para los objetivos
+            target_text = font_target.render(target["name"], True, color)
+            text_rect = target_text.get_rect(center=(target_rect.centerx, target_rect.centery))
+            screen.blit(target_text, text_rect)
 
         # Si se está mostrando el resultado
         if self.show_result:
-            result_rect = pygame.Rect(WINDOW_WIDTH // 2 - 200, WINDOW_HEIGHT // 2 - 50, 400, 100)
-            draw_panel(screen, result_rect.x, result_rect.y, result_rect.width, result_rect.height, CHARCOAL, self.result_color, 2, 10)
-            draw_text(screen, self.result_message, self.font_small, WHITE, result_rect.centerx, result_rect.centery)
+            # Crear un panel de resultado más atractivo
+            result_rect = pygame.Rect(WINDOW_WIDTH // 2 - 250, WINDOW_HEIGHT // 2 - 60, 500, 120)
+
+            # Dibujar un panel con borde redondeado y sombra
+            shadow_rect = result_rect.copy()
+            shadow_rect.x += 5
+            shadow_rect.y += 5
+            pygame.draw.rect(screen, (20, 20, 20, 150), shadow_rect, border_radius=15)
+
+            # Panel principal
+            draw_panel(screen, result_rect.x, result_rect.y, result_rect.width, result_rect.height, CHARCOAL, self.result_color, 3, 15)
+
+            # Dibujar el mensaje con una fuente más pequeña y clara
+            font_result = pygame.font.Font(None, 18)  # Usar la fuente por defecto con tamaño 18
+            text_surface = font_result.render(self.result_message, True, WHITE)
+            text_rect = text_surface.get_rect(center=(result_rect.centerx, result_rect.centery))
+            screen.blit(text_surface, text_rect)
+
+            # Si es un mensaje de error, mostrar un botón de cerrar más pequeño
+            if not self.completed:
+                error_close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 40, WINDOW_HEIGHT // 2 + 30, 80, 30)
+                # Sombra para el botón
+                shadow_btn = error_close_rect.copy()
+                shadow_btn.x += 2
+                shadow_btn.y += 2
+                pygame.draw.rect(screen, (20, 20, 20, 150), shadow_btn, border_radius=5)
+                # Botón principal
+                draw_panel(screen, error_close_rect.x, error_close_rect.y, error_close_rect.width, error_close_rect.height, CHARCOAL, self.result_color, 2, 5)
+                # Texto del botón
+                font_btn = pygame.font.Font(None, 14)  # Fuente más pequeña para el botón de error
+                btn_text = font_btn.render("Cerrar", True, WHITE)
+                btn_rect = btn_text.get_rect(center=(error_close_rect.centerx, error_close_rect.centery))
+                screen.blit(btn_text, btn_rect)
 
             # Botón de cerrar si la actividad está completada
             if self.completed:
-                close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 50, WINDOW_HEIGHT - 100, 100, 40)
-                draw_panel(screen, close_rect.x, close_rect.y, close_rect.width, close_rect.height, CHARCOAL, GREEN, 2, 5)
-                draw_text(screen, "Cerrar", self.font_small, WHITE, close_rect.centerx, close_rect.centery)
+                close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT // 2 + 100, 120, 45)
+
+                # Sombra para el botón
+                shadow_btn = close_rect.copy()
+                shadow_btn.x += 3
+                shadow_btn.y += 3
+                pygame.draw.rect(screen, (20, 20, 20, 150), shadow_btn, border_radius=10)
+
+                # Botón principal
+                draw_panel(screen, close_rect.x, close_rect.y, close_rect.width, close_rect.height, CHARCOAL, GREEN, 2, 10)
+
+                # Texto del botón
+                font_btn = pygame.font.Font(None, 16)  # Usar la fuente por defecto con tamaño 16
+                btn_text = font_btn.render("Cerrar", True, WHITE)
+                btn_rect = btn_text.get_rect(center=(close_rect.centerx, close_rect.centery))
+                screen.blit(btn_text, btn_rect)
 
     def _get_item_rect(self, index):
         """Obtener el rectángulo para un elemento"""
-        panel_width = 500
+        # Aumentar el tamaño del panel principal en un 20%
+        panel_width = 600  # Antes 500
+        panel_height = 480  # Antes 400
         panel_x = (WINDOW_WIDTH - panel_width) // 2
+        panel_y = (WINDOW_HEIGHT - panel_height) // 2
 
-        item_width = 220
-        item_height = 100
-        item_x = panel_x + 30
-        item_y = (WINDOW_HEIGHT - panel_width) // 2 + 70 + index * (item_height + 20)
+        # Aumentar el ancho y la altura de los elementos en un 20%
+        item_width = 288  # Antes 240 (240 * 1.2 = 288)
+        item_height = 96  # Antes 80 (80 * 1.2 = 96)
+
+        # Ajustar la posición para mantener el centrado
+        item_x = panel_x + 30  # Ajustado para centrar mejor
+
+        # Distribuir los elementos verticalmente con más espacio
+        spacing = 30  # Antes 25
+        item_y = panel_y + 90 + index * (item_height + spacing)
 
         return pygame.Rect(item_x, item_y, item_width, item_height)
 
     def _get_target_rect(self, index):
         """Obtener el rectángulo para un objetivo"""
-        panel_width = 500
+        # Usar el mismo panel aumentado en un 20%
+        panel_width = 600  # Antes 500
+        panel_height = 480  # Antes 400
         panel_x = (WINDOW_WIDTH - panel_width) // 2
+        panel_y = (WINDOW_HEIGHT - panel_height) // 2
 
-        target_width = 180
-        target_height = 40
-        target_x = panel_x + panel_width - target_width - 30
-        target_y = (WINDOW_HEIGHT - panel_width) // 2 + 100 + index * (target_height + 40)
+        # Aumentar el ancho y la altura de los objetivos en un 20%
+        target_width = 216  # Antes 180 (180 * 1.2 = 216)
+        target_height = 48  # Antes 40 (40 * 1.2 = 48)
+
+        # Ajustar la posición para mantener el centrado
+        target_x = panel_x + panel_width - target_width - 30  # Ajustado para centrar mejor
+
+        # Alinear los objetivos con los elementos
+        item_height = 96  # Debe coincidir con el nuevo item_height
+        spacing = 30  # Debe coincidir con el nuevo spacing
+        target_y = panel_y + 115 + index * (item_height + spacing)
 
         return pygame.Rect(target_x, target_y, target_width, target_height)
 
@@ -699,42 +803,20 @@ class PMBOKInitiationRoom(Room):
                 # Dibujar pequeños destellos alrededor de la imagen
                 for _ in range(2):  # Crear solo 2 partículas a la vez para evitar sobrecarga
                     # Posición aleatoria alrededor de la imagen
-                    particle_x = mission_pos[0] + random.randint(0, self.mission_img.get_width())
-                    particle_y = mission_pos[1] + random.randint(0, self.mission_img.get_height())
-
-                    # Tamaño aleatorio
-                    particle_size = random.randint(1, 3)
-
-                    # Color aleatorio (amarillo/dorado)
-                    particle_color = (255, 255, 100, random.randint(100, 200))
-
-                    # Dibujar la partícula
-                    pygame.draw.circle(screen, particle_color, (particle_x, particle_y), particle_size)
-
-            # Si el jugador está cerca de la misión, mostrar un indicador visual
-            if self.player_near_mission and not self.activity.active:
-                # Dibujar un texto indicando que se puede interactuar
-                font = assets.get_font("small")
-
-                # Color pulsante simple
-                pulse_color = YELLOW
-                if self.glow_value > 0.5:
-                    pulse_color = WHITE
-
-                # Renderizar el texto
-                text_surface = font.render("Presiona ESPACIO para interactuar", True, pulse_color)
-
-                # Posicionar el texto con un ligero movimiento vertical
-                y_offset = int(math.sin(self.animation_time * 0.1) * 3)  # Movimiento más sutil
-                text_rect = text_surface.get_rect(center=(
-                    mission_pos[0] + self.mission_img.get_width() // 2,
-                    mission_pos[1] - 20 + y_offset
-                ))
-
-                screen.blit(text_surface, text_rect)
-
-        # Renderizar la actividad si está activa
-        self.activity.render(screen)
+                    offset_x = random.randint(-20, 20)
+                    offset_y = random.randint(-20, 20)
+                    particle_pos = (
+                        mission_pos[0] + self.mission_img.get_width() // 2 + offset_x,
+                        mission_pos[1] + self.mission_img.get_height() // 2 + offset_y
+                    )
+                    # Color aleatorio para el destello
+                    particle_color = (
+                        random.randint(200, 255),
+                        random.randint(200, 255),
+                        random.randint(200, 255)
+                    )
+                    # Dibujar un pequeño círculo como destello
+                    pygame.draw.circle(screen, particle_color, particle_pos, random.randint(1, 3))
 
         # Solo dibuja los rectángulos de colisión si estamos en modo debug
         if DEBUG_MODE:

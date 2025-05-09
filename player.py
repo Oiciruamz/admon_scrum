@@ -160,6 +160,12 @@ class Player:
         # Reset movement flag
         self.is_moving = False
 
+        # Verificar si hay una actividad activa en la sala actual
+        # Si hay una actividad activa, no permitir el movimiento
+        if hasattr(self, 'current_room') and self.current_room:
+            if hasattr(self.current_room, 'activity') and self.current_room.activity.active:
+                return
+
         # Calculate movement based on direction flags
         dx = 0
         dy = 0

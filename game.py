@@ -471,9 +471,21 @@ class Game:
         if current_room:
             current_room.render(self.screen)
 
-        # Renderizar al jugador directamente sobre la sala
+        # Renderizar al jugador directamente sobre la sala, pero solo si no hay una actividad activa
         if self.player:
-            self.player.render(self.screen)
+            # Verificar si hay una actividad activa en la sala actual
+            activity_active = False
+            if isinstance(current_room, PMBOKInitiationRoom) and hasattr(current_room, 'activity'):
+                activity_active = current_room.activity.active
+
+            # Solo renderizar al jugador si no hay actividad activa
+            if not activity_active:
+                self.player.render(self.screen)
+
+        # Renderizar la actividad después del jugador (si existe y está activa)
+        if isinstance(current_room, PMBOKInitiationRoom) and hasattr(current_room, 'activity'):
+            if current_room.activity.active:
+                current_room.activity.render(self.screen)
 
         # Render UI elements
         self.ui.render_game_ui(self.screen, self.timer)
