@@ -2147,7 +2147,7 @@ class ScrumArtifactsActivity:
                                 # Relación incorrecta
                                 print(f"Relación incorrecta: {self.items[self.selected_item]['text']} -> {target['name']}")
                                 self.show_result = True
-                                self.result_message = "Relación incorrecta. Revisa con cuidado qué representa cada concepto y piensa en su función dentro del proceso Scrum. A veces, el nombre del artefacto te puede dar una pista sobre su propósito. ¡Inténtalo de nuevo con calma!"
+                                self.result_message = "Relación Incorrecta. ¡Inténtalo de nuevo con calma!"
                                 self.result_color = RED
 
                             self.selected_item = None
