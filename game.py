@@ -74,7 +74,8 @@ class Game:
 
         # Actualizar el juego principal
         elif self.state == STATE_GAME:
-            self.player.update()
+            if not getattr(self.room_manager.get_current_room(), 'showing_info', False):
+                self.player.update()
             current_room = self.room_manager.get_current_room()
             self.player.current_room = current_room
             current_room.update()
@@ -82,12 +83,18 @@ class Game:
             self.ui.update()
 
             # Verificar si el jugador está cerca del área de la misión (solo para PMBOKInitiationRoom)
-            if isinstance(current_room, PMBOKInitiationRoom):
-                if hasattr(current_room, 'check_mission_area'):
-                    current_room.check_mission_area(self.player.rect)
+           # if isinstance(current_room, PMBOKInitiationRoom):
+            #    if hasattr(current_room, 'check_mission_area'):
+             #       current_room.check_mission_area(self.player.rect)
+            if hasattr(current_room, 'check_mission_area'):
+                current_room.check_mission_area(self.player.rect)
+            if hasattr(current_room, 'check_info_area'):
+                 current_room.check_info_area(self.player.rect)
 
             # Verificar si se ha presionado la tecla de espacio para interactuar
-            if self.player.is_interacting():
+            # Bloquear interacción si se está mostrando el recuadro informativo
+            if self.player.is_interacting() and not getattr(current_room, 'showing_info', False):
+
                 # Verificar si el jugador está en un área de transición
                 in_transition_area = False
                 if hasattr(current_room, 'check_transition_area'):
@@ -215,7 +222,7 @@ class Game:
             path: Selected path (PMBOK or Scrum)
         """
         self.selected_path = path
-        self.room_manager = RoomManager(path)
+        self.room_manager = RoomManager(path, self)
         self.player = Player()
         # Set initial room
         self.player.current_room = self.room_manager.get_current_room()
@@ -475,7 +482,7 @@ class Game:
         if self.player:
             # Verificar si hay una actividad activa en la sala actual
             activity_active = False
-            if isinstance(current_room, PMBOKInitiationRoom) and hasattr(current_room, 'activity'):
+            if hasattr(current_room, 'activity'):
                 activity_active = current_room.activity.active
 
             # Solo renderizar al jugador si no hay actividad activa
@@ -483,9 +490,11 @@ class Game:
                 self.player.render(self.screen)
 
         # Renderizar la actividad después del jugador (si existe y está activa)
-        if isinstance(current_room, PMBOKInitiationRoom) and hasattr(current_room, 'activity'):
+        if hasattr(current_room, 'activity') and current_room.activity.active:
             if current_room.activity.active:
                 current_room.activity.render(self.screen)
+
+
 
         # Render UI elements
         self.ui.render_game_ui(self.screen, self.timer)
