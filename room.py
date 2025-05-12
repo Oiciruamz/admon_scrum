@@ -2141,7 +2141,7 @@ class ScrumArtifactsActivity:
                                 if all(item.get("matched", False) for item in self.items):
                                     self.completed = True
                                     self.show_result = True
-                                    self.result_message = "¡Excelente! Has relacionado correctamente todos los elementos. Puedes avanzar a la siguiente sala."
+                                    self.result_message = "¡Excelente! Has relacionado correctamente todos los elementos."
                                     self.result_color = GREEN
                             else:
                                 # Relación incorrecta
