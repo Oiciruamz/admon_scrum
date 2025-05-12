@@ -57,7 +57,7 @@ def main():
     sys.exit()
 
 if __name__ == "__main__":
-    # Create asset directories if they don't exist
+    # Create asset directories if they don't exist 
     os.makedirs(IMAGES_DIR, exist_ok=True)
     os.makedirs(SOUNDS_DIR, exist_ok=True)
     os.makedirs(FONTS_DIR, exist_ok=True)
