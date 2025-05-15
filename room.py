@@ -312,7 +312,7 @@ class RoomManager:
         self.rooms.append(room1)
 
         # Room 2: Scrum Artifacts
-        room2 = ScrumArtifactsRoom(scrum_content[1])
+        room2 = ScrumArtifactsRoom(scrum_content[1],self.game)
         self.rooms.append(room2)
 
         # Room 3: Scrum Events
@@ -1710,7 +1710,7 @@ class ScrumRolesRoom(Room):
         self.player_near_mission = False
 
         # Segundo objeto informativo (ajusta la posición según tu sala)
-        self.info_rect = pygame.Rect(100, 400, 100, 100)
+        self.info_rect = pygame.Rect(130, 395, 100, 100)
         self.player_near_info = False
         self.showing_info = False
 
@@ -1822,7 +1822,7 @@ class ScrumRolesRoom(Room):
             self.info_rect.width,
             self.info_rect.height
         )
-        proximity_rect = info_rect_abs.inflate(20, 20)
+        proximity_rect = info_rect_abs.inflate(130, 60)
 
         self.player_near_info = proximity_rect.colliderect(player_rect)
 
@@ -1930,7 +1930,7 @@ class ScrumRolesRoom(Room):
                 glow_pos = (info_pos[0] - 10, info_pos[1] - 10)
                 screen.blit(glow_surface, glow_pos)
 
-            screen.blit(self.mission_img, info_pos)
+            #screen.blit(self.mission_img, info_pos)
 
         
         if DEBUG_MODE:
@@ -2041,10 +2041,366 @@ class ScrumRolesRoom(Room):
                     self.showing_info = True
                     
 
+class ScrumSala2:
+    def __init__(self, game_instance):
+        self.game = game_instance
+        self.active = False
+        self.font = pygame.font.Font(None, 22)
+        COLUMN_WIDTH = 195
+        COLUMN_SPACING = 2
+        TOP_MARGIN = 120
+        LEFT_MARGIN = (601 - (3 * COLUMN_WIDTH + 2 * COLUMN_SPACING)) // 2
+
+        self.column_positions = {
+            "Por hacer": LEFT_MARGIN,
+            "En progreso": LEFT_MARGIN + COLUMN_WIDTH + COLUMN_SPACING,
+            "Hecho": LEFT_MARGIN + 2 * (COLUMN_WIDTH + COLUMN_SPACING)
+        }
+        self.column_rects = {
+            col: pygame.Rect(x, TOP_MARGIN, COLUMN_WIDTH, 450)
+            for col, x in self.column_positions.items()
+        }
+        self.columns = ["Por hacer", "En progreso", "Hecho"]
+        
+
+        self.result_message = ""
+        self.result_color = GREEN
+        self.show_result = False
+        self.feedback_active = False
+        self.feedback_button_rect = None
+        self.completed = False
+        self.manual_close_rect = None  # botón "cerrar actividad"
+        self.card_font = pygame.font.Font(None, 17)
+
+        self.items = [
+            {
+                "text": "HU01 \n Diseñar logo de la app\n Como diseñador, quiero crear y entregar el logotipo de FitHomeApp para definir la identidad visual del producto.",
+                "correct_column": "Hecho",
+                "rect": None,
+                "dragging": False
+            },
+            {
+                "text": "HU02 \n Programar pantalla de inicio\nComo usuario, quiero ver una pantalla de bienvenida clara y funcional, para acceder fácilmente a la aplicación.",
+                "correct_column": "En progreso",
+                "rect": None,
+                "dragging": False
+            },
+            {
+                "text": "HU03 \n Implementar base de datos\nComo desarrollador, necesito crear la base de datos que almacene rutinas y perfiles, para que los usuarios tengan un seguimiento personalizado.",
+                "correct_column": "Por hacer",
+                "rect": None,
+                "dragging": False
+            },
+            {
+                "text": "HU04 \n Revisar código de funcionalidades\nComo equipo, queremos revisar el código desarrollado hasta ahora, para asegurar que cumple con los estándares del proyecto.",
+                "correct_column": "Por hacer",
+                "rect": None,
+                "dragging": False
+            },
+            {
+                "text": "HU05 \n Redactar documentación técnica\nComo redactora técnica, quiero documentar las funcionalidades implementadas, para que el equipo tenga claridad sobre el sistema y sus componentes.",
+                "correct_column": "En progreso",
+                "rect": None,
+                "dragging": False
+            }
+        ]
+        self._position_items()
+
+    def _position_items(self):
+        CARD_WIDTH = 175
+        #CARD_HEIGHT = 50
+        CARD_SPACING = 5
+        MARGIN_Y = 140
+        START_X = self.column_positions["Por hacer"] + (195 - CARD_WIDTH) // 2  # centradas dentro de la columna
+        START_Y = 140  # espacio debajo del título de columna
+
+        font = self.card_font
+
+         # Inicializa contadores de altura por columna
+        columnas_y = {
+            "Por hacer": MARGIN_Y,
+            "En progreso": MARGIN_Y,
+            "Hecho": MARGIN_Y
+        }
+
+        for i, item in enumerate(self.items):
+            # Determinar columna por índice
+            if i < 2:
+                columna = "Por hacer"
+            elif i < 4:
+                columna = "En progreso"
+            else:
+                columna = "Hecho"
+
+            # Calcular altura de la tarjeta
+            lines = self._wrap_text(item["text"], self.card_font, CARD_WIDTH - 20)
+            line_height = self.card_font.get_height() + 6
+            total_height = 10 + len(lines) * line_height + 10
+
+            # Centrar tarjeta en la columna
+            x = self.column_positions[columna] + (195 - CARD_WIDTH) // 2
+            y = columnas_y[columna]
+
+            # Asignar rect
+            item["rect"] = pygame.Rect(x, y, CARD_WIDTH, total_height)
+
+            # Actualiza el acumulado de altura para esa columna
+            columnas_y[columna] += total_height + CARD_SPACING
+
+
+    def activate(self):
+        self.active = True
+        self.show_result = False
+        self.feedback_active = False
+        self.completed = False
+        self._position_items()
+
+    def deactivate(self):
+        self.active = False
+
+    def handle_event(self, event):
+        if not self.active:
+            return
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.manual_close_rect and self.manual_close_rect.collidepoint(event.pos):
+                self.deactivate()
+                return
+
+        
+        if self.show_result and hasattr(self, 'result_button_rect'):
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.result_button_rect.collidepoint(event.pos):
+                    self.show_result = False
+                    self.deactivate()
+                    return
+
+        if self.feedback_active and self.feedback_button_rect:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.feedback_button_rect.collidepoint(event.pos):
+                    self.feedback_active = False
+                    self.feedback_button_rect = None
+                    self.game.state = STATE_GAME_OVER
+                    return
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                for item in self.items:
+                    if item["rect"].collidepoint(event.pos):
+                        item["dragging"] = True
+                        self.drag_offset = (event.pos[0] - item["rect"].x, event.pos[1] - item["rect"].y)
+
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1:
+                for item in self.items:
+                    item["dragging"] = False
+
+        elif event.type == pygame.MOUSEMOTION:
+            for item in self.items:
+                if item["dragging"]:
+                    item["rect"].x = event.pos[0] - self.drag_offset[0]
+                    item["rect"].y = event.pos[1] - self.drag_offset[1]
+
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN:
+                self._verificar_clasificacion()
+
+    def _verificar_clasificacion(self):
+        correctas = 0
+        for item in self.items:
+            x = item["rect"].centerx
+            assigned_column = None
+            for col, rect in self.column_rects.items():
+                if rect.collidepoint(x, item["rect"].centery):
+                    assigned_column = col
+                    break
+            if assigned_column == item["correct_column"]:
+                correctas += 1
+
+        if correctas == len(self.items):
+            self.completed = True
+            self.result_message = "¡Correcto! Has clasificado todas las tareas correctamente."
+            self.result_color = (20, 130, 40)
+            self.show_result = True
+        else:
+            self.result_message = (
+                " Parece que algunas tareas están colocadas en columnas incorrectas.\n\n"
+                "Recuerda los principios del tablero Scrum:\n"
+                "• Hecho: ya fue completado y aprobado.\n"
+                "• En progreso: se está trabajando actualmente.\n"
+                "• Por hacer: aún no se ha comenzado.\n\n"
+                "El tablero Scrum es la brújula del equipo: mantenerlo actualizado ayuda a todos a saber en qué estado está el trabajo.\n"
+                "Revisa el informe del Scrum Master y vuelve a intentar clasificar las tareas. "
+            )
+            self.result_color = (180, 40, 40)
+            self.feedback_active = True
+
+    def draw_scrum_tablero(self, screen, font):
+        COLUMN_WIDTH = 195
+        CARD_WIDTH = 190
+        COLUMN_SPACING = 2
+        TOP_MARGIN = 120
+        LEFT_MARGIN = (601 - (3 * COLUMN_WIDTH + 2 * COLUMN_SPACING)) // 2
+        
+        # Colores suaves por columna
+        column_colors = {
+            "Por hacer": (180, 60, 60),
+            "En progreso": (240, 180, 50),
+            "Hecho": (60, 160, 90)
+        }
+
+        title_font = pygame.font.Font(None, 26)
+        title_font.set_bold(True)
+
+        for col, rect in self.column_rects.items():
+            # Dibujar fondo de columna
+            pygame.draw.rect(screen, (255, 255, 255), rect)
+            pygame.draw.rect(screen, (100, 100, 100), rect, 2)
+
+            # Dibujar fondo redondeado del título
+            title_rect = pygame.Rect(rect.x, rect.y - 30, rect.width, 30)
+            pygame.draw.rect(screen, column_colors[col], title_rect, border_radius=8)
+
+            # Dibujar texto centrado
+            title_text = title_font.render(col, True, (255, 255, 255))
+            title_text_rect = title_text.get_rect(center=title_rect.center)
+            screen.blit(title_text, title_text_rect)
+
+        for item in self.items:
+            rect = item["rect"]
+            x = rect.x
+            y = rect.y
+            w = rect.width
+            h = rect.height
+
+            # Sombra suave para dar volumen
+            shadow_offset = 4
+            pygame.draw.rect(screen, (200, 200, 200), (x + shadow_offset, y + shadow_offset, w, h), border_radius=6)
+
+            # Fondo crema claro tipo papel
+            pygame.draw.rect(screen, (252, 250, 240), rect, border_radius=6)
+
+            # Margen rojo (como en hojas de cuaderno)
+            margin_x = x + 20
+            pygame.draw.line(screen, (200, 50, 50), (margin_x, y + 10), (margin_x, y + h - 10), 2)
+
+            # Líneas horizontales tipo hoja rayada
+            line_y = y + 10
+            line_spacing = self.card_font.get_height() + 6
+            while line_y < y + h - 10:
+                pygame.draw.line(screen, (200, 200, 200), (x + 8, line_y), (x + w - 8, line_y), 1)
+                line_y += line_spacing
+
+            # Borde principal
+            pygame.draw.rect(screen, (90, 80, 60), rect, 2, border_radius=6)
+
+            # Dibujar texto encima
+            text_lines = self._wrap_text(item["text"], self.card_font, w - 30)  # 30 = padding + margen rojo
+            text_x = x + 28  # margen izquierdo más grande por línea roja
+            text_y = y + 10
+
+            for line in text_lines:
+                rendered = self.card_font.render(line, True, (30, 30, 30))
+                screen.blit(rendered, (text_x, text_y))
+                text_y += rendered.get_height() + 4
+
+    
+    def render(self, screen):
+        if not self.active:
+            return
+
+        font = pygame.font.Font(None, 24)
+        #screen.fill((230, 230, 230)) está borrando el HUD del juego así que por eso lo comenté
+
+        self.draw_scrum_tablero(screen, self.font)
+
+        # Mostrar resultado si es correcto
+        if self.show_result:
+            self._draw_modal(screen, self.result_message, self.result_color, True)
+
+        # Botón de cerrar actividad (superior derecha)
+        close_btn_width = 90
+        close_btn_height = 30
+        close_btn_x = 600 - close_btn_width - 10  # Ajustado para pantalla 600x600
+        close_btn_y = 60
+
+        self.manual_close_rect = pygame.Rect(close_btn_x, close_btn_y, close_btn_width, close_btn_height)
+
+        pygame.draw.rect(screen, (100, 100, 100), self.manual_close_rect, border_radius=10)
+        pygame.draw.rect(screen, (255, 255, 255), self.manual_close_rect, 2, border_radius=10)
+
+        font_btn = pygame.font.Font(None, 22)
+        close_text = font_btn.render("Cerrar", True, (255, 255, 255))
+        close_text_rect = close_text.get_rect(center=self.manual_close_rect.center)
+        screen.blit(close_text, close_text_rect)
+
+        # Mostrar retroalimentación si es incorrecto
+        if self.feedback_active:
+            self._draw_modal(screen, self.result_message, self.result_color, False)
+
+    def _draw_modal(self, screen, message, color, success):
+        modal_width = 500
+        font = pygame.font.Font(None, 22)
+        lines = self._wrap_text(message, font, modal_width - 40)
+        modal_height = 80 + len(lines) * 18
+        modal_x = (screen.get_width() - modal_width) // 2
+        modal_y = (screen.get_height() - modal_height) // 2
+
+        pygame.draw.rect(screen, (255, 255, 255), (modal_x, modal_y, modal_width, modal_height), border_radius=12)
+        pygame.draw.rect(screen, color, (modal_x, modal_y, modal_width, modal_height), 3, border_radius=12)
+
+        for i, line in enumerate(lines):
+            text = font.render(line, True, color)
+            text_rect = text.get_rect(center=(modal_x + modal_width // 2, modal_y + 40 + i * 15))
+            screen.blit(text, text_rect)
+
+        # Botón
+        btn_width = 120
+        btn_height = 35
+        btn_x = modal_x + (modal_width - btn_width) // 2
+        btn_y = modal_y + modal_height - 50
+        rect_btn = pygame.Rect(btn_x, btn_y, btn_width, btn_height)
+
+        pygame.draw.rect(screen, color, rect_btn, border_radius=8)
+        pygame.draw.rect(screen, (0, 0, 0), rect_btn, 2, border_radius=8)
+        btn_text = font.render("Cerrar", True, (255, 255, 255))
+        btn_text_rect = btn_text.get_rect(center=rect_btn.center)
+        screen.blit(btn_text, btn_text_rect)
+
+        if success:
+            self.result_button_rect = rect_btn
+        else:
+            self.feedback_button_rect = rect_btn
+
+    def _wrap_text(self, text, font, max_width):
+        paragraphs = text.split('\n')
+        lines = []
+
+        for paragraph in paragraphs:
+            words = paragraph.split()
+            current_line = ""
+
+            for word in words:
+                test_line = current_line + " " + word if current_line else word
+                if font.size(test_line)[0] <= max_width:
+                    current_line = test_line
+                else:
+                    lines.append(current_line)
+                    current_line = word
+
+            if current_line:
+                lines.append(current_line)
+
+            # Añade una línea vacía entre párrafos si había un \n explícito
+            if paragraph != paragraphs[-1]:
+                lines.append("")  # línea en blanco (opcional)
+        return lines
+
+    
     
 
 class ScrumArtifactsRoom(Room):
-    def __init__(self, content):
+    def __init__(self, content, game_instance):
         super().__init__("Scrum: Artifacts", "Learn about Scrum artifacts", GREEN)
         self.content = content
         self.collision_rects = []  # Lista para los rectángulos de colisión
@@ -2063,12 +2419,42 @@ class ScrumArtifactsRoom(Room):
         except Exception as e:
             print(f"Error loading background image: {e}")
             self.scaled_bg = None
+        
+        # Cargar la imagen de la misión
+        mission_path = os.path.join("img", "MISION.png")
+        try:
+            mission_img = pygame.image.load(mission_path).convert_alpha()
+            self.mission_img = pygame.transform.scale(mission_img, (120, 120))  # Tamaño más grande para mejor visibilidad
+        except Exception as e:
+            print(f"Error loading mission image: {e}")
+            self.mission_img = None
+        
+        self.game = game_instance
+        self.activity = ScrumSala2(self.game)
+
+         # Área interactiva para la misión
+        self.mission_rect = pygame.Rect(400, 80, 188, 184)
+        self.player_near_mission = False
+
+        # Segundo objeto informativo (ajusta la posición según tu sala)
+        self.info_rect = pygame.Rect(50, 280, 100, 100)
+        self.player_near_info = False
+        self.showing_info = False
+
+        # Variables para la animación de flotación
+        self.animation_time = 0
+        self.float_amplitude = 10  # Amplitud de la flotación (en píxeles)
+        self.float_speed = 0.05    # Velocidad de la flotación
+        self.rotation_amplitude = 5  # Amplitud de la rotación (en grados)
+        self.glow_value = 0        # Valor para el efecto de brillo
 
         self._setup_room()
 
     def _setup_room(self):
         """Set up room display only"""
         self.completed = True
+        self.player_in_transition_area = False  # Inicializar variable para el área de transición
+        self.player_near_mission = False  # Inicializar variable para el área de la misión
 
         # Definir las áreas de colisión usando rectángulos
         self.collision_rects = [
@@ -2092,12 +2478,123 @@ class ScrumArtifactsRoom(Room):
         transition_rect = pygame.Rect(
             186 + self.bg_x_offset,  # Ajustar por el offset del fondo
             105 + self.bg_y_offset,  # Ajustar por el offset del fondo
-            199,  # Ancho del área (385 - 186)
+            100,  # Ancho del área (385 - 186)
             245   # Alto del área (350 - 105)
         )
-        return transition_rect.colliderect(player_rect)
+        inside_area = transition_rect.colliderect(player_rect)
+         # Dibujar el área de transición en modo debug para visualización
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 0), transition_rect, 2)
+            if inside_area:
+                # Si el jugador está dentro, dibujar un indicador más visible
+                pygame.draw.rect(pygame.display.get_surface(), (255, 0, 0), transition_rect, 1)
+                print("Jugador en área de transición de PMBOKInitiationRoom")
+
+        # Si el jugador está dentro del área, guardar esta información
+        if inside_area:
+            self.player_in_transition_area = True
+        else:
+            self.player_in_transition_area = False
+
+        return inside_area
+    
+    def check_mission_area(self, player_rect):
+        """Check if player is near the mission area"""
+        # Importar pygame al inicio del método para evitar errores
+        import pygame
+
+        # Convertir las coordenadas relativas a absolutas para el área de la misión
+        mission_rect_abs = pygame.Rect(
+            self.mission_rect.x + self.bg_x_offset,
+            self.mission_rect.y + self.bg_y_offset,
+            self.mission_rect.width,
+            self.mission_rect.height
+        )
+         # Crear un rectángulo más grande para detectar proximidad
+        proximity_rect = mission_rect_abs.inflate(50, 50)  # 100 píxeles más grande en cada dirección para facilitar la interacción
+
+        # Verificar si el jugador está cerca del área de la misión
+        near_mission = proximity_rect.colliderect(player_rect)
+
+        # Dibujar el área de la misión en modo debug
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 255), mission_rect_abs, 2)
+            pygame.draw.rect(pygame.display.get_surface(), (0, 200, 200), proximity_rect, 1)
+            if near_mission:
+                pygame.draw.rect(pygame.display.get_surface(), (255, 255, 0), proximity_rect, 1)
+                print("Jugador cerca del área de la misión")
+
+        # Actualizar el estado
+        self.player_near_mission = near_mission
+        #print("[DEBUG] check_mission_area se llamó")
+
+        return near_mission
+    
+    def check_info_area(self, player_rect):
+        """Detecta si el jugador está cerca del segundo objeto interactivo"""
+        import pygame 
+    
+        info_rect_abs = pygame.Rect(
+            self.info_rect.x + self.bg_x_offset,
+            self.info_rect.y + self.bg_y_offset,
+            self.info_rect.width,
+            self.info_rect.height
+        )
+        proximity_rect = info_rect_abs.inflate(230, 230)
+
+        self.player_near_info = proximity_rect.colliderect(player_rect)
+
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 100, 255), info_rect_abs, 2)
+            pygame.draw.rect(pygame.display.get_surface(), (0, 80, 200), proximity_rect, 1)
+            if self.player_near_info:
+                print("Jugador cerca del objeto informativo")
+
+        return self.player_near_info
+
+    def update(self):
+        """Update room state"""
+        super().update()  # Llamar al método update de la clase padre
+
+        # Actualizar el tiempo de animación
+        self.animation_time += 1
+
+        # Actualizar el valor de brillo (oscila entre 0 y 1)
+        self.glow_value = (math.sin(self.animation_time * 0.05) + 1) / 2
+
+        if hasattr(self, "player"):
+            self.check_info_area(self.player.rect)
+
+    def _wrap_text(self, text, font, max_width):
+        words = text.split()
+        lines = []
+        current = []
+        for word in words:
+            test = " ".join(current + [word])
+            if font.size(test)[0] <= max_width:
+                current.append(word)
+            else:
+                lines.append(" ".join(current))
+                current = [word]
+        if current:
+            lines.append(" ".join(current))
+        return lines
+
+    def _check_completion(self):
+        """Room is always completed"""
+        self.completed = True
 
     def handle_event(self, event):
+        # Si la actividad está activa, manejar sus eventos
+        if self.activity.active:
+            self.activity.handle_event(event)
+            return
+        
+        if self.showing_info and hasattr(self, "info_close_button"):
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.info_close_button.collidepoint(event.pos):
+                    self.showing_info = False
+        
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
                 self.start_pos = pygame.mouse.get_pos()
@@ -2121,12 +2618,96 @@ class ScrumArtifactsRoom(Room):
         elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
             if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
                 self.collision_rects = []
+            elif event.key == pygame.K_SPACE:  # Tecla espacio para interactuar con la misión
+                # Verificar si el jugador está cerca del área de la misión
+                if self.player_near_mission:
+                    # Activar la actividad educativa
+                    self.activity.activate()
+                    print("Actividad educativa activada")
+                elif self.player_near_info:
+                    self.showing_info = True
 
     def render(self, screen):
         if self.scaled_bg:
             screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
         else:
             screen.fill((0,0,0))
+         # Dibujar la imagen de la misión con animación
+        if self.mission_img:
+            # Calcular la posición base para centrar la imagen en el rectángulo
+            base_x = self.mission_rect.x + self.bg_x_offset + (self.mission_rect.width - self.mission_img.get_width()) // 2
+            base_y = self.mission_rect.y + self.bg_y_offset + (self.mission_rect.height - self.mission_img.get_height()) // 2
+
+            # Aplicar efecto de flotación usando funciones sinusoidales
+            float_offset_y = math.sin(self.animation_time * self.float_speed) * self.float_amplitude
+
+            # Posición final con efecto de flotación
+            mission_pos = (base_x, base_y + float_offset_y)
+
+            # Aplicar efecto de brillo si el jugador está cerca
+            if self.player_near_mission:
+                # Crear una superficie para el halo
+                glow_width = self.mission_img.get_width() + 60
+                glow_height = self.mission_img.get_height() + 30
+                glow_surface = pygame.Surface((glow_width, glow_height), pygame.SRCALPHA)
+
+                # Dibujar un halo alrededor de la imagen
+                glow_color = (255, 255, 100, int(100 * self.glow_value))  # Amarillo con transparencia variable
+                halo_rect = pygame.Rect(0, 0, glow_width, glow_height)
+                halo_rect.inflate_ip(1, -20)  # Más ancho, menos alto
+
+                pygame.draw.ellipse(
+                    glow_surface,
+                    glow_color,
+                    halo_rect
+                )
+
+                # Dibujar el halo
+                glow_pos = (mission_pos[0] - 30, mission_pos[1] - 10)
+                screen.blit(glow_surface, glow_pos)
+
+            # Dibujar la imagen principal
+            #screen.blit(self.mission_img, mission_pos)
+
+            # Efecto simple de partículas si el jugador está cerca
+            if self.player_near_mission and random.random() < 0.03:  # 3% de probabilidad por frame
+                # Dibujar pequeños destellos alrededor de la imagen
+                for _ in range(2):  # Crear solo 2 partículas a la vez para evitar sobrecarga
+                    # Posición aleatoria alrededor de la imagen
+                    offset_x = random.randint(-20, 20)
+                    offset_y = random.randint(-20, 20)
+                    particle_pos = (
+                        mission_pos[0] + self.mission_img.get_width() // 2 + offset_x,
+                        mission_pos[1] + self.mission_img.get_height() // 2 + offset_y
+                    )
+                    # Color aleatorio para el destello
+                    particle_color = (
+                        random.randint(200, 255),
+                        random.randint(200, 255),
+                        random.randint(200, 255)
+                    )
+                    # Dibujar un pequeño círculo como destello
+                    pygame.draw.circle(screen, particle_color, particle_pos, random.randint(1, 3))
+
+                    # Solo dibuja los rectángulos de colisión si estamos en modo debug
+        if self.mission_img:
+            # Imagen flotante para el segundo objeto
+            base_x = self.info_rect.x + self.bg_x_offset + (self.info_rect.width - self.mission_img.get_width()) // 2
+            base_y = self.info_rect.y + self.bg_y_offset + (self.info_rect.height - self.mission_img.get_height()) // 2
+            float_offset_y = math.sin(self.animation_time * self.float_speed) * self.float_amplitude
+            info_pos = (base_x, base_y + float_offset_y)
+
+            if self.player_near_info:
+                glow_width = self.mission_img.get_width() + 20
+                glow_height = self.mission_img.get_height() + 20
+                glow_surface = pygame.Surface((glow_width, glow_height), pygame.SRCALPHA)
+                glow_color = (120, 220, 255, int(100 * self.glow_value))  # Azul claro
+                pygame.draw.ellipse(glow_surface, glow_color, glow_surface.get_rect())
+                glow_pos = (info_pos[0] - 10, info_pos[1] - 10)
+                screen.blit(glow_surface, glow_pos)
+
+            #screen.blit(self.mission_img, info_pos)
+
 
         # Solo dibuja los rectángulos de colisión si estamos en modo debug
         if DEBUG_MODE:
@@ -2144,6 +2725,44 @@ class ScrumArtifactsRoom(Room):
                     abs(current_pos[1] - self.start_pos[1])
                 )
                 pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
+    
+    def render_info_modal(self, screen):
+        modal_width = 500
+        font = pygame.font.Font(None, 22)
+
+        info_text = (
+            "Hola, bienvenido. Estás colaborando con el equipo de desarrollo de FitHomeApp. "
+            "Nuestro equipo ha estado trabajando en varias funcionalidades clave. Tu tarea es ayudarnos a actualizar el tablero Scrum, colocando cada actividad en la columna que le corresponde según su estado real. "
+            "El diseño del logo fue aprobado por el cliente ayer después de algunos ajustes. "
+            "Los desarrolladores están actualmente trabajando en la pantalla de inicio, integrando imágenes y botones funcionales. "
+            "La base de datos aún no se ha iniciado, ya que se está esperando el esquema final aprobado. "
+            "La revisión de código está asignada pero nadie la ha comenzado. "
+            "Esta mañana, la redactora técnica comenzó a documentar las funcionalidades implementadas."
+        )
+
+        wrapped_info = self._wrap_text(info_text, font, modal_width - 40)
+
+        line_spacing = 25
+        text_margin_top = 40
+        text_margin_bottom = 60
+        modal_height = text_margin_top + len(wrapped_info) * line_spacing + text_margin_bottom
+
+        modal_x = (WINDOW_WIDTH - modal_width) // 2
+        modal_y = (WINDOW_HEIGHT - modal_height) // 2
+
+        pygame.draw.rect(screen, (240, 250, 255), (modal_x, modal_y, modal_width, modal_height), border_radius=12)
+        pygame.draw.rect(screen, (30, 100, 160), (modal_x, modal_y, modal_width, modal_height), 3, border_radius=12)
+
+        for i, line in enumerate(wrapped_info):
+            text_surf = font.render(line, True, (20, 40, 60))
+            text_rect = text_surf.get_rect(center=(modal_x + modal_width // 2, modal_y + 40 + i * 25))
+            screen.blit(text_surf, text_rect)
+
+        self.info_close_button = pygame.Rect(modal_x + modal_width - 110, modal_y + modal_height - 50, 90, 30)
+        pygame.draw.rect(screen, (30, 100, 160), self.info_close_button, border_radius=8)
+        screen.blit(font.render("Cerrar", True, WHITE), self.info_close_button.move(20, 5))
+
+
 
 class ScrumEventsRoom(Room):
     def __init__(self, content):
