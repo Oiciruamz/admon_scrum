@@ -493,6 +493,11 @@ class Game:
         if hasattr(current_room, 'activity') and current_room.activity.active:
             if current_room.activity.active:
                 current_room.activity.render(self.screen)
+        
+        # Mostrar el cuadro de información al final (si se está mostrando)
+        if getattr(current_room, 'showing_info', False):
+            if hasattr(current_room, 'render_info_modal'):
+                current_room.render_info_modal(self.screen)
 
 
 
@@ -610,3 +615,4 @@ class Game:
         exit_text = self.font_small.render("Press ESC to exit", True, WHITE)
         exit_rect = exit_text.get_rect(center=(WINDOW_WIDTH // 2, panel_y + 440))
         self.screen.blit(exit_text, exit_rect)
+
