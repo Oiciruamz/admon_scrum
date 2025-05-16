@@ -318,7 +318,7 @@ class RoomManager:
         self.rooms.append(room2)
 
         # Room 3: Scrum Events
-        room3 = ScrumEventsRoom(scrum_content[2])
+        room3 = ScrumEventsRoom(scrum_content[2], self.game)
         self.rooms.append(room3)
 
 
@@ -3488,11 +3488,184 @@ class ScrumArtifactsRoom(Room):
 
 
 
+class ScrumDailyActivity:
+    def __init__(self, game):
+        self.game = game
+        self.active = False
+        self.completed = False
+
+        self.font = pygame.font.SysFont("arial", 18)
+        self.large_font = pygame.font.SysFont("arial", 24, bold=True)
+
+        self.phrases = [
+            "verificar funcionamiento de notificaciones push",
+            "desarrollar módulo de rutinas personalizadas",
+            "esperar recuperación del diseñador UX"
+        ]
+        self.correct_matches = {
+            0: "Ayer",
+            1: "Hoy",
+            2: "Impedimentos"
+        }
+
+        self.responses = ["Hoy", "Impedimentos", "Ayer"]
+        self.selected_phrase = None
+        self.user_matches = {}
+
+        self.feedback_mode = False
+        self.success = False
+        self.button_rect = pygame.Rect(300, 520, 200, 50)
+        self.close_button_rect = pygame.Rect(560, 110, 30, 30)
+
+    def handle_event(self, event):
+        if not self.active:
+            return
+
+        panel_width, panel_height = 600, 500
+        panel_x = (WINDOW_WIDTH - panel_width) // 2
+        panel_y = 100
+
+        self.close_button_rect = pygame.Rect(panel_x + panel_width - 40, panel_y + 10, 30, 30)
+        self.button_rect = pygame.Rect(panel_x + 200, panel_y + 420, 200, 50)
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            mx, my = event.pos
+
+            if self.close_button_rect.collidepoint(mx, my):
+                self.active = False
+                return
+
+            if self.feedback_mode:
+                feedback_width, feedback_height = 580, 100
+                feedback_y = (WINDOW_HEIGHT - feedback_height) // 2 - 30
+                self.button_rect = pygame.Rect((WINDOW_WIDTH - 200) // 2, feedback_y + feedback_height + 20, 200, 50)
+                
+                if self.button_rect.collidepoint(mx, my):
+                    if self.success:
+                        self.completed = True
+                        self.active = False
+                    self.game.state = "game" if self.success else "game_over"
+                    return
+
+            for i in range(len(self.phrases)):
+                phrase_rect = pygame.Rect(panel_x + 20, panel_y + 100 + i * 100, 400, 45)
+                if phrase_rect.collidepoint(mx, my):
+                    self.selected_phrase = i
+
+            for j in range(len(self.responses)):
+                response_rect = pygame.Rect(panel_x + 440, panel_y + 100 + j * 100, 120, 45)
+                if response_rect.collidepoint(mx, my):
+                    if self.selected_phrase is not None:
+                        self.user_matches[self.selected_phrase] = self.responses[j]
+                        self.selected_phrase = None
+
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN and not self.feedback_mode:
+                self.feedback_mode = True
+                self.success = all(
+                    self.user_matches.get(i) == self.correct_matches[i] for i in range(3)
+                )
+
+    def render(self, screen):
+        if not self.active:
+            return
+
+        panel_width, panel_height = 600, 500
+        panel_x = (WINDOW_WIDTH - panel_width) // 2
+        panel_y = 100
+
+        self.close_button_rect = pygame.Rect(panel_x + panel_width - 40, panel_y + 10, 30, 30)
+        self.button_rect = pygame.Rect(panel_x + 200, panel_y + 420, 200, 50)
+
+        WHITE = (255, 255, 255)
+        DARK_GREEN = (30, 60, 30)
+        LIGHT_GRAY = (200, 200, 200)
+        BLACK = (0, 0, 0)
+        BORDER = (220, 220, 220)
+        GREEN = (50, 200, 50)
+        RED = (200, 50, 50)
+
+        pygame.draw.rect(screen, DARK_GREEN, (panel_x, panel_y, panel_width, panel_height), border_radius=12)
+        pygame.draw.rect(screen, BORDER, (panel_x, panel_y, panel_width, panel_height), 2, border_radius=12)
+
+        info_lines = ["Daily Scrum"]
+        for i, line in enumerate(info_lines):
+            text = self.font.render(line, True, WHITE)
+            screen.blit(text, (panel_x + 15, panel_y + 15 + i*22))
+
+        pygame.draw.rect(screen, RED, self.close_button_rect)
+        x_text = self.font.render("X", True, WHITE)
+        screen.blit(x_text, (self.close_button_rect.x + 8, self.close_button_rect.y + 5))
+
+        for i, phrase in enumerate(self.phrases):
+            color = LIGHT_GRAY if self.selected_phrase != i else BORDER
+            pygame.draw.rect(screen, color, (panel_x + 20, panel_y + 100 + i*100, 400, 40), border_radius=10)
+            text = self.font.render(phrase, True, BLACK)
+            screen.blit(text, (panel_x + 30, panel_y + 115 + i*100))
+
+        for j, resp in enumerate(self.responses):
+            pygame.draw.rect(screen, LIGHT_GRAY, (panel_x + 440, panel_y + 100 + j*100, 120, 45), border_radius=10)
+            text = self.font.render(resp, True, BLACK)
+            screen.blit(text, (panel_x + 460, panel_y + 115 + j*100))
+
+        for idx, answer in self.user_matches.items():
+            if answer in self.responses:
+                resp_idx = self.responses.index(answer)
+                pygame.draw.line(screen, BLACK,
+                                 (panel_x + 420, panel_y + 122 + idx*100),
+                                 (panel_x + 440, panel_y + 122 + resp_idx*100), 2)
+
+        if self.feedback_mode:
+            color = GREEN if self.success else RED
+            message = "¡Correcto! Has completado el Daily Scrum." if self.success else (
+                "Parece que hubo un error. Recuerda: lo que ya se completó pertenece al 'ayer', "
+                "lo que se hará hoy debe ser un compromiso claro, y cualquier obstáculo va como impedimento."
+            )
+            # Centrar el cuadro de feedback en la pantalla
+            feedback_width, feedback_height = 580, 100
+            feedback_x = (WINDOW_WIDTH - feedback_width) // 2
+            feedback_y = (WINDOW_HEIGHT - feedback_height) // 2 - 30  # Un poco más arriba del centro
+
+            pygame.draw.rect(screen, color, (feedback_x, feedback_y, feedback_width, feedback_height), border_radius=15)
+            wrapped = self.wrap_text(message, self.font, feedback_width - 20)
+            for i, line in enumerate(wrapped):
+                text = self.font.render(line, True, WHITE)
+                screen.blit(text, (feedback_x + 10, feedback_y + 15 + i*22))
+
+            # Botón centrado debajo del mensaje
+            self.button_rect = pygame.Rect((WINDOW_WIDTH - 200) // 2, feedback_y + feedback_height + 20, 200, 50)
+            pygame.draw.rect(screen, BLACK, self.button_rect, border_radius=10)
+            btn_text = self.font.render("Continuar", True, WHITE)
+            screen.blit(btn_text, (self.button_rect.x + 50, self.button_rect.y + 15))
+
+
+    def wrap_text(self, text, font, max_width):
+        words = text.split(' ')
+        lines = []
+        current_line = ""
+        for word in words:
+            test_line = f"{current_line} {word}".strip()
+            if font.size(test_line)[0] <= max_width:
+                current_line = test_line
+            else:
+                lines.append(current_line)
+                current_line = word
+        if current_line:
+            lines.append(current_line)
+        return lines
+    
+    def update(self, events):
+        if not self.active:
+            return
+
+    # Aquí va toda tu lógica de manejo de eventos (clics, teclado, etc.)
+
+
 class ScrumEventsRoom(Room):
-    def __init__(self, content):
+    def __init__(self, content, game_instance):
         super().__init__("Scrum: Events", "Learn about Scrum events", YELLOW)
         self.content = content
-        self.collision_rects = []  # Lista para los rectángulos de colisión
+        self.collision_rects = []
 
         # Cargar y escalar la imagen de fondo una sola vez
         bg_path = os.path.join("img", "sala_3_scrum.png")
@@ -3509,94 +3682,123 @@ class ScrumEventsRoom(Room):
             print(f"Error loading background image: {e}")
             self.scaled_bg = None
 
+        self.game = game_instance
+
+        # Zona de activación de misión
+        self.mission_rect = pygame.Rect(400 + self.bg_x_offset, 250 + self.bg_y_offset, 188, 184)
+        self.player_near_mission = False
+
+        # Zona de información adicional
+        self.info_rect = pygame.Rect(50 + self.bg_x_offset, 400 + self.bg_y_offset, 100, 100)
+        self.player_near_info = False
+        self.showing_info = False
+        self.info_close_button = pygame.Rect(0, 0, 30, 30)
+
+        # Imagen flotante de misión
+        mission_path = os.path.join("img", "MISION.png")
+        try:
+            mission_img = pygame.image.load(mission_path).convert_alpha()
+            self.mission_img = pygame.transform.scale(mission_img, (120, 120))
+        except Exception as e:
+            print(f"Error loading mission image: {e}")
+            self.mission_img = None
+
+        self.animation_time = 0
+        self.float_amplitude = 10
+        self.float_speed = 0.05
+        self.rotation_amplitude = 5
+        self.glow_value = 0
+
         self._setup_room()
+        self.activity = ScrumDailyActivity(game_instance)
+        self.font = pygame.font.SysFont("arial", 18)
 
     def _setup_room(self):
-        """Set up room display only"""
         self.completed = True
-        self.player_in_transition_area = False  # Inicializar variable para el área de transición
-
-        # Definir las áreas de colisión usando los rectángulos especificados
+        self.player_in_transition_area = False
         self.collision_rects = [
-            # Rectángulos donde el jugador no puede acceder
-            pygame.Rect(182, 24, 594-182, 287-24),     # Rectángulo superior
-            pygame.Rect(11, 417, 181-11, 510-417),     # Rectángulo inferior izquierdo
-            pygame.Rect(415, 288, 594-415, 427-288),   # Rectángulo derecho
-            pygame.Rect(15, 89, 178-15, 272-89)        # Rectángulo izquierdo
+            pygame.Rect(182, 24, 594-182, 287-24),
+            pygame.Rect(11, 417, 181-11, 510-417),
+            pygame.Rect(415, 288, 594-415, 427-288),
+            pygame.Rect(15, 89, 178-15, 272-89)
         ]
-
-        # Convertir las coordenadas relativas a absolutas
         for rect in self.collision_rects:
             rect.x += self.bg_x_offset
             rect.y += self.bg_y_offset
 
     def check_collision(self, player_rect):
-        """Check if player collides with any collision rectangle"""
         return any(rect.colliderect(player_rect) for rect in self.collision_rects)
 
     def check_transition_area(self, player_rect):
-        """Check if player is in the transition area to next room (para finalizar el juego)"""
-        # Importar pygame al inicio del método para evitar el error UnboundLocalError
         import pygame
-
-        # Usar el rectángulo especificado: (15, 89) a (178, 272)
-        transition_rect = pygame.Rect(
-            15 + self.bg_x_offset,   # Coordenada X inicial
-            89 + self.bg_y_offset,   # Coordenada Y inicial
-            178 - 15,                # Ancho
-            272 - 89                 # Alto
-        )
-
-        # Calcular el centro del jugador
+        transition_rect = pygame.Rect(15 + self.bg_x_offset, 89 + self.bg_y_offset, 178 - 15, 272 - 89)
         player_center_x = player_rect.x + player_rect.width // 2
         player_center_y = player_rect.y + player_rect.height // 2
-
-        # Verificar si el centro del jugador está dentro del área de transición
         inside_area = (transition_rect.x <= player_center_x <= transition_rect.x + transition_rect.width and
                        transition_rect.y <= player_center_y <= transition_rect.y + transition_rect.height)
-
-        # Dibujar el área de transición en modo debug para visualización
         if DEBUG_MODE:
             pygame.draw.rect(pygame.display.get_surface(), (0, 255, 0), transition_rect, 2)
             if inside_area:
-                # Si el jugador está dentro, dibujar un indicador más visible
                 pygame.draw.rect(pygame.display.get_surface(), (255, 0, 0), transition_rect, 1)
-
-        # Si el jugador está dentro del área, guardar esta información para mostrar un mensaje
-        if inside_area:
-            self.player_in_transition_area = True
-            # Imprimir mensaje de depuración
-            if DEBUG_MODE:
-                print("Jugador en área de transición de ScrumEventsRoom")
-        else:
-            self.player_in_transition_area = False
-
+        self.player_in_transition_area = inside_area
         return inside_area
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
+            if event.button == 1:
                 self.start_pos = pygame.mouse.get_pos()
-            elif event.button == 3 and hasattr(self, 'start_pos'):  # Clic derecho para completar el rectángulo
+            elif event.button == 3 and hasattr(self, 'start_pos'):
                 end_pos = pygame.mouse.get_pos()
-                # Convertir a coordenadas relativas
                 rel_start_x = self.start_pos[0] - self.bg_x_offset
                 rel_start_y = self.start_pos[1] - self.bg_y_offset
                 rel_end_x = end_pos[0] - self.bg_x_offset
                 rel_end_y = end_pos[1] - self.bg_y_offset
                 print(f"Nuevo rectángulo: ({rel_start_x}, {rel_start_y}) a ({rel_end_x}, {rel_end_y})")
-
-                # Crear el rectángulo (asegurando que width y height sean positivos)
                 x = min(self.start_pos[0], end_pos[0])
                 y = min(self.start_pos[1], end_pos[1])
                 width = abs(end_pos[0] - self.start_pos[0])
                 height = abs(end_pos[1] - self.start_pos[1])
-
                 self.collision_rects.append(pygame.Rect(x, y, width, height))
                 delattr(self, 'start_pos')
-        elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
-            if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_c:
                 self.collision_rects = []
+        
+        if self.showing_info and event.type == pygame.MOUSEBUTTONDOWN:
+            mx, my = pygame.mouse.get_pos()
+            if self.info_close_button.collidepoint(mx, my):
+                self.showing_info = False
+                return
+        if self.activity and self.activity.active:
+            self.activity.handle_event(event)
+
+
+    def update(self):
+        events = pygame.event.get()  # Obtener eventos una sola vez
+        self.events = events  # Guardarlos para render o eventos internos si se necesita
+
+        if self.activity and self.activity.active:
+            self.activity.update(events)
+            return
+
+        player_center = self.game.player.rect.center
+        self.player_near_mission = self.mission_rect.collidepoint(player_center)
+        self.player_near_info = self.info_rect.collidepoint(player_center)
+
+        keys = pygame.key.get_pressed()
+        if self.player_near_mission and keys[pygame.K_SPACE]:
+            self.activity.active = True
+
+        if self.player_near_info and keys[pygame.K_SPACE]:
+            self.showing_info = True
+
+        for event in events:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mx, my = pygame.mouse.get_pos()
+                if self.showing_info and self.info_close_button.collidepoint(mx, my):
+                    self.showing_info = False
+
+
 
     def render(self, screen):
         if self.scaled_bg:
@@ -3604,13 +3806,9 @@ class ScrumEventsRoom(Room):
         else:
             screen.fill((0,0,0))
 
-        # Solo dibuja los rectángulos de colisión si estamos en modo debug
         if DEBUG_MODE:
-            # Dibujar los rectángulos existentes
             for rect in self.collision_rects:
                 pygame.draw.rect(screen, RED, rect, 2)
-
-            # Si hay un rectángulo en proceso (entre clic izquierdo y derecho)
             if hasattr(self, 'start_pos'):
                 current_pos = pygame.mouse.get_pos()
                 preview_rect = pygame.Rect(
@@ -3619,8 +3817,52 @@ class ScrumEventsRoom(Room):
                     abs(current_pos[0] - self.start_pos[0]),
                     abs(current_pos[1] - self.start_pos[1])
                 )
-                pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
+                pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)
 
-        # Se ha eliminado el mensaje de texto que pedía presionar ESPACIO
-        # También se ha eliminado la flecha amarilla
+        if not self.activity.active and self.mission_img:
+            self.animation_time += 1
+            float_offset = int(self.float_amplitude * math.sin(self.animation_time * self.float_speed))
+            img_x = self.mission_rect.x + (self.mission_rect.width - self.mission_img.get_width()) // 2
+            img_y = self.mission_rect.y + float_offset
+            screen.blit(self.mission_img, (img_x, img_y))
 
+        if self.activity and self.activity.active:
+            self.activity.render(screen)
+
+        if self.player_near_mission:
+            glow_alpha = 128 + int(127 * math.sin(self.animation_time * 0.2))
+            glow_surface = pygame.Surface(self.mission_rect.size, pygame.SRCALPHA)
+            glow_surface.fill((255, 255, 0, glow_alpha))
+            screen.blit(glow_surface, self.mission_rect.topleft)
+
+        if self.player_near_info:
+            glow_alpha = 100 + int(100 * math.sin(self.animation_time * 0.3))
+            glow_surface = pygame.Surface(self.info_rect.size, pygame.SRCALPHA)
+            glow_surface.fill((0, 200, 255, glow_alpha))
+            screen.blit(glow_surface, self.info_rect.topleft)
+
+        if self.showing_info:
+            panel_width, panel_height = 520, 260
+            panel_x = (WINDOW_WIDTH - panel_width) // 2
+            panel_y = 150
+            pygame.draw.rect(screen, (30, 60, 30), (panel_x, panel_y, panel_width, panel_height), border_radius=12)
+            pygame.draw.rect(screen, (220, 220, 220), (panel_x, panel_y, panel_width, panel_height), 2, border_radius=12)
+
+            lines = [
+                "Hola. Estás asistiendo a nuestro Daily Scrum del equipo FitHomeApp.",
+                "Cada miembro ha compartido lo que hizo, lo que va a hacer y si tuvo",
+                "algún problema. Tu misión es organizar esa información en el pizarrón",
+                "para que todos tengamos claridad del estado del Sprint."
+            ]
+
+            for i, line in enumerate(lines):
+                text = self.font.render(line, True, (255, 255, 255))
+                screen.blit(text, (panel_x + 20, panel_y + 20 + i * 30))
+
+            self.info_close_button = pygame.Rect(panel_x + panel_width - 40, panel_y + 10, 30, 30)
+            pygame.draw.rect(screen, (200, 50, 50), self.info_close_button)
+            x_text = self.font.render("X", True, (255, 255, 255))
+            screen.blit(x_text, (self.info_close_button.x + 8, self.info_close_button.y + 5))
+        
+        # Limpiar eventos cacheados (para el siguiente frame)
+        self.cached_events = []
