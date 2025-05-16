@@ -344,6 +344,33 @@ class PMBOKActivity:
             {"name": "Alcance del producto", "position": "right", "matched": False}
         ]
 
+        # Colores mejorados
+        self.bg_gradient_top = (40, 40, 70)  # Azul oscuro
+        self.bg_gradient_bottom = (20, 20, 35)  # Azul más oscuro
+        self.panel_bg_color = (30, 35, 60)  # Azul oscuro para el panel principal
+        self.panel_border_color = (80, 130, 200)  # Azul claro para bordes
+        self.title_color = (220, 220, 255)  # Blanco azulado para títulos
+
+        # Para las tarjetas
+        self.item_bg = (45, 60, 100)  # Azul medio
+        self.item_hover_bg = (55, 70, 115)  # Azul medio más claro (para hover)
+        self.item_selected_bg = (70, 85, 130)  # Azul más claro cuando está seleccionado
+        self.item_matched_color = (100, 200, 120)  # Verde para elementos emparejados
+
+        # Para los objetivos
+        self.target_bg = (65, 50, 90)  # Púrpura oscuro
+        self.target_border = (150, 120, 200)  # Púrpura claro
+        self.target_matched_color = (120, 200, 100)  # Verde para objetivos emparejados
+
+        # Efectos visuales adicionales
+        self.use_particle_effects = True
+        self.particles = []  # Para efectos de partículas cuando hay un match correcto
+        self.animation_time = 0
+        self.pulse_speed = 0.05
+        
+        # Hover y selección
+        self.hover_item = None
+        self.hover_target = None
         self.selected_item = None
         self.completed = False
         self.show_result = False
@@ -355,6 +382,11 @@ class PMBOKActivity:
         self.active = True
         self.completed = False
         self.show_result = False
+        self.hover_item = None
+        self.hover_target = None
+        self.selected_item = None
+        self.particles = []
+        # Eliminar la reinicialización del temporizador
         # Reiniciar el estado de los elementos
         for item in self.items:
             item["matched"] = False
@@ -378,7 +410,13 @@ class PMBOKActivity:
                 if self.show_result:
                     # Si la actividad está completada, mostrar el botón de cerrar
                     if self.completed:
-                        close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT // 2 + 100, 120, 45)
+                        # Usar las mismas dimensiones definidas en _render_result_modal
+                        modal_width = 500
+                        modal_height = 150
+                        modal_x = (WINDOW_WIDTH - modal_width) // 2
+                        modal_y = (WINDOW_HEIGHT - modal_height) // 2
+                        # Botón ACEPTAR con dimensiones actualizadas
+                        close_rect = pygame.Rect(modal_x + modal_width // 2 - 70, modal_y + modal_height - 40, 140, 35)
                         if close_rect.collidepoint(mouse_pos):
                             self.deactivate()
                             return
@@ -402,6 +440,7 @@ class PMBOKActivity:
                         item_rect = self._get_item_rect(i)
                         if item_rect.collidepoint(mouse_pos) and not item.get("matched", False):
                             self.selected_item = i
+                            # Sonido de selección (simulado)
                             print(f"Elemento seleccionado: {i}")
                             return  # Salir después de seleccionar un elemento
                 else:
@@ -411,8 +450,11 @@ class PMBOKActivity:
                         if target_rect.collidepoint(mouse_pos) and not target.get("matched", False):
                             # Comprobar si la relación es correcta
                             if self.items[self.selected_item]["correct_target"] == target["name"]:
-                                # Relación correcta
-                                print(f"Relación correcta: {self.items[self.selected_item]['text']} -> {target['name']}")
+                                # Relación correcta - Crear partículas para celebrar
+                                if self.use_particle_effects:
+                                    self._create_success_particles(target_rect.center)
+                                
+                                # Marcar como emparejados
                                 self.items[self.selected_item]["matched"] = True
                                 target["matched"] = True
 
@@ -424,7 +466,6 @@ class PMBOKActivity:
                                     self.result_color = GREEN
                             else:
                                 # Relación incorrecta
-                                print(f"Relación incorrecta: {self.items[self.selected_item]['text']} -> {target['name']}")
                                 self.show_result = True
                                 self.result_message = "Relación incorrecta. Inténtalo de nuevo."
                                 self.result_color = RED
@@ -434,146 +475,427 @@ class PMBOKActivity:
 
                     # Si se hizo clic en cualquier otro lugar, deseleccionar
                     if not any(self._get_target_rect(i).collidepoint(mouse_pos) for i in range(len(self.targets))):
-                        print("Deseleccionando elemento")
                         self.selected_item = None
+        
+        elif event.type == pygame.MOUSEMOTION:
+            # Actualizar elementos bajo el cursor (hover)
+            mouse_pos = pygame.mouse.get_pos()
+            
+            # Detectar hover en elementos
+            self.hover_item = None
+            for i, item in enumerate(self.items):
+                if not item.get("matched", False):  # Solo hover en elementos no emparejados
+                    if self._get_item_rect(i).collidepoint(mouse_pos):
+                        self.hover_item = i
+                        break
+            
+            # Detectar hover en objetivos
+            self.hover_target = None
+            for i, target in enumerate(self.targets):
+                if not target.get("matched", False):  # Solo hover en objetivos no emparejados
+                    if self._get_target_rect(i).collidepoint(mouse_pos):
+                        self.hover_target = i
+                        break
+
+    def _create_success_particles(self, position):
+        """Crear partículas para un emparejamiento exitoso"""
+        for _ in range(20):  # Crear 20 partículas
+            angle = random.uniform(0, math.pi * 2)  # Ángulo aleatorio
+            speed = random.uniform(2, 5)  # Velocidad aleatoria
+            size = random.uniform(2, 6)  # Tamaño aleatorio
+            lifetime = random.uniform(30, 60)  # Vida en frames
+            color = (
+                random.randint(180, 255),  # R
+                random.randint(180, 255),  # G
+                random.randint(100, 200)   # B
+            )
+            
+            particle = {
+                'x': position[0],
+                'y': position[1],
+                'vx': math.cos(angle) * speed,
+                'vy': math.sin(angle) * speed,
+                'size': size,
+                'color': color,
+                'lifetime': lifetime,
+                'age': 0
+            }
+            self.particles.append(particle)
+
+    def _update_particles(self):
+        """Actualizar partículas (posición, vida, etc.)"""
+        particles_to_keep = []
+        
+        for particle in self.particles:
+            # Actualizar posición
+            particle['x'] += particle['vx']
+            particle['y'] += particle['vy']
+            
+            # Aplicar gravedad suave
+            particle['vy'] += 0.1
+            
+            # Envejecer la partícula
+            particle['age'] += 1
+            
+            # Si la partícula sigue viva, conservarla
+            if particle['age'] < particle['lifetime']:
+                particles_to_keep.append(particle)
+        
+        # Reemplazar la lista de partículas
+        self.particles = particles_to_keep
 
     def render(self, screen):
         """Renderizar la actividad"""
         if not self.active:
             return
 
-        # Dibujar el fondo semitransparente
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))  # Negro semitransparente
+        # Actualizar efectos visuales
+        self.animation_time += 1
+        if self.use_particle_effects:
+            self._update_particles()
+            
+        # Eliminar el código de temporización automática
+        
+        # Dibujar el fondo con gradiente
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+        for y in range(WINDOW_HEIGHT):
+            # Calcular color interpolado para cada línea del gradiente
+            ratio = y / WINDOW_HEIGHT
+            color = (
+                int(self.bg_gradient_top[0] * (1 - ratio) + self.bg_gradient_bottom[0] * ratio),
+                int(self.bg_gradient_top[1] * (1 - ratio) + self.bg_gradient_bottom[1] * ratio),
+                int(self.bg_gradient_top[2] * (1 - ratio) + self.bg_gradient_bottom[2] * ratio)
+            )
+            pygame.draw.line(overlay, color, (0, y), (WINDOW_WIDTH, y))
+        
+        # Añadir un poco de transparencia
+        overlay.set_alpha(230)
         screen.blit(overlay, (0, 0))
 
-        # Dibujar el panel principal (20% más grande)
-        panel_width = 600  # Antes 500
-        panel_height = 480  # Antes 400
+        # Dibujar estrellas aleatorias en el fondo para efecto espacial
+        for _ in range(50):
+            x = random.randint(0, WINDOW_WIDTH)
+            y = random.randint(0, WINDOW_HEIGHT)
+            size = random.choice([1, 1, 1, 2, 2, 3])  # Mayormente estrellas pequeñas
+            brightness = random.randint(120, 255)
+            # Hacer parpadear algunas estrellas
+            if random.random() < 0.1:  # 10% de probabilidad de parpadeo
+                brightness = random.randint(50, 150)
+            
+            pygame.draw.circle(screen, (brightness, brightness, brightness), (x, y), size)
+
+        # Dibujar el panel principal con un borde iluminado
+        panel_width = 600
+        panel_height = 480
         panel_x = (WINDOW_WIDTH - panel_width) // 2
         panel_y = (WINDOW_HEIGHT - panel_height) // 2
+        
+        # Panel con un borde suave
+        pygame.draw.rect(screen, self.panel_bg_color, (panel_x, panel_y, panel_width, panel_height), border_radius=15)
+        
+        # Borde iluminado con efecto pulsante
+        border_glow = int(180 + 75 * math.sin(self.animation_time * self.pulse_speed))
+        border_color = (
+            min(255, self.panel_border_color[0] * border_glow // 180),
+            min(255, self.panel_border_color[1] * border_glow // 180),
+            min(255, self.panel_border_color[2] * border_glow // 180)
+        )
+        pygame.draw.rect(screen, border_color, (panel_x, panel_y, panel_width, panel_height), 3, border_radius=15)
 
-        draw_panel(screen, panel_x, panel_y, panel_width, panel_height, CHARCOAL, WHITE, 3, 15)
-
-        # Dibujar el título con una fuente más pequeña
-        font_title = pygame.font.Font(None, 22)  # Fuente más pequeña para el título
-        title_text = font_title.render("Relaciona los elementos con su contexto", True, WHITE)
+        # Dibujar título con un efecto de sombra
+        font_title = pygame.font.Font(None, 26)  # Fuente más grande y legible
+        shadow_text = font_title.render("Relaciona los elementos con su contexto", True, (20, 20, 40))
+        title_text = font_title.render("Relaciona los elementos con su contexto", True, self.title_color)
+        
+        # Primero la sombra ligeramente desplazada
+        shadow_rect = shadow_text.get_rect(center=(WINDOW_WIDTH // 2 + 2, panel_y + 40 + 2))
+        screen.blit(shadow_text, shadow_rect)
+        
+        # Luego el texto principal
         title_rect = title_text.get_rect(center=(WINDOW_WIDTH // 2, panel_y + 40))
         screen.blit(title_text, title_rect)
 
-        # Dibujar los elementos a relacionar
+        # Dibujar los elementos a relacionar con efecto de hover y selección
         for i, item in enumerate(self.items):
             item_rect = self._get_item_rect(i)
-            color = GREEN if item.get("matched", False) else WHITE
-            # Dibujar con borde más grueso y más redondeado
-            pygame.draw.rect(screen, color, item_rect, 3, border_radius=10)
+            
+            # Determinar color de fondo según estado
+            if item.get("matched", False):
+                bg_color = self.item_matched_color
+                text_color = (20, 20, 20)  # Casi negro para contrastar con verde
+                border_width = 2
+            elif self.selected_item == i:
+                bg_color = self.item_selected_bg
+                text_color = WHITE
+                border_width = 3
+            elif self.hover_item == i:
+                bg_color = self.item_hover_bg
+                text_color = WHITE
+                border_width = 2
+            else:
+                bg_color = self.item_bg
+                text_color = (220, 220, 220)  # Blanco ligeramente atenuado
+                border_width = 2
+            
+            # Dibujar fondo del elemento con sombra
+            shadow_rect = item_rect.copy()
+            shadow_rect.x += 4
+            shadow_rect.y += 4
+            pygame.draw.rect(screen, (20, 20, 30), shadow_rect, border_radius=10)
+            
+            # Dibujar el elemento principal
+            pygame.draw.rect(screen, bg_color, item_rect, border_radius=10)
+            pygame.draw.rect(screen, self.panel_border_color, item_rect, border_width, border_radius=10)
+            
+            # Añadir un indicador visual (icono) al inicio
+            icon_radius = 10
+            icon_x = item_rect.x + 20
+            icon_y = item_rect.y + item_rect.height // 2
+            
+            if item.get("matched", False):
+                # Dibujar un check si está emparejado
+                pygame.draw.circle(screen, self.item_matched_color, (icon_x, icon_y), icon_radius)
+                pygame.draw.circle(screen, self.panel_border_color, (icon_x, icon_y), icon_radius, 1)
+                # Dibujar un símbolo de check
+                pygame.draw.line(screen, (20, 20, 20), (icon_x - 5, icon_y), (icon_x - 2, icon_y + 4), 2)
+                pygame.draw.line(screen, (20, 20, 20), (icon_x - 2, icon_y + 4), (icon_x + 5, icon_y - 4), 2)
+            else:
+                # Dibujar un círculo para elementos no emparejados
+                pygame.draw.circle(screen, (200, 200, 200), (icon_x, icon_y), icon_radius)
+                pygame.draw.circle(screen, self.panel_border_color, (icon_x, icon_y), icon_radius, 1)
 
-            # Dibujar el texto del elemento (ajustado para que quepa en el rectángulo)
+            # Dibujar el texto del elemento con mejor formato
             text = item["text"]
             words = text.split()
             lines = []
             current_line = []
-
-            # Usar una fuente más pequeña para el texto
-            font_to_use = pygame.font.Font(None, 14)  # Reducir el tamaño de la fuente a 14
-
+            
+            # Usar una fuente un poco más grande para mejor legibilidad
+            font_to_use = pygame.font.Font(None, 16)  # Fuente más legible
+            
             for word in words:
                 test_line = " ".join(current_line + [word])
-                if font_to_use.size(test_line)[0] < item_rect.width - 20:
+                if font_to_use.size(test_line)[0] < item_rect.width - 50:  # Más espacio para el texto
                     current_line.append(word)
                 else:
                     lines.append(" ".join(current_line))
                     current_line = [word]
-
+            
             if current_line:
                 lines.append(" ".join(current_line))
-
-            # Calcular la altura total del texto con espaciado adecuado para fuente pequeña
-            line_height = 16  # Reducir el espaciado entre líneas para fuente pequeña
+            
+            # Calcular la altura total del texto
+            line_height = 18  # Ligeramente mayor espaciado
             text_height = len(lines) * line_height
-            start_y = item_rect.y + (item_rect.height - text_height) // 2  # Centrar verticalmente
-
+            start_y = item_rect.y + (item_rect.height - text_height) // 2
+            
             # Dibujar cada línea de texto
             for j, line in enumerate(lines):
                 y_pos = start_y + j * line_height
                 if y_pos < item_rect.y + item_rect.height - 10:
-                    # Crear una superficie de texto
-                    text_surface = font_to_use.render(line, True, color)
-                    # Centrar horizontalmente
-                    text_rect = text_surface.get_rect(center=(item_rect.x + item_rect.width // 2, y_pos))
-                    # Dibujar el texto
+                    text_surface = font_to_use.render(line, True, text_color)
+                    text_rect = text_surface.get_rect(x=item_rect.x + 40, y=y_pos)  # Alineado a la izquierda con margen
                     screen.blit(text_surface, text_rect)
 
-            # Si este elemento está seleccionado, dibujarlo con un borde más grueso y del mismo radio
-            if self.selected_item == i:
-                pygame.draw.rect(screen, YELLOW, item_rect, 5, border_radius=10)
-
-        # Dibujar los objetivos
+        # Dibujar los objetivos con efectos mejorados
         for i, target in enumerate(self.targets):
             target_rect = self._get_target_rect(i)
-            color = GREEN if target.get("matched", False) else WHITE
-            pygame.draw.rect(screen, color, target_rect, 2, border_radius=8)  # Borde más redondeado
-
-            # Usar una fuente más pequeña y centrar mejor el texto
-            font_target = pygame.font.Font(None, 16)  # Fuente más pequeña para los objetivos
-            target_text = font_target.render(target["name"], True, color)
-            text_rect = target_text.get_rect(center=(target_rect.centerx, target_rect.centery))
+            
+            # Determinar color según estado
+            if target.get("matched", False):
+                bg_color = self.target_matched_color
+                border_color = (40, 100, 40)
+                text_color = (20, 20, 20)
+                glow = True
+            elif self.hover_target == i:
+                bg_color = (75, 60, 100)  # Ligeramente más claro al pasar el mouse
+                border_color = self.target_border
+                text_color = (240, 240, 240)
+                glow = True
+            else:
+                bg_color = self.target_bg
+                border_color = self.target_border
+                text_color = (220, 220, 220)
+                glow = False
+            
+            # Efecto de resplandor para objetivos resaltados
+            if glow:
+                glow_surface = pygame.Surface((target_rect.width + 10, target_rect.height + 10), pygame.SRCALPHA)
+                glow_color = (*border_color, 70)  # Añadir alfa
+                pygame.draw.rect(glow_surface, glow_color, (0, 0, target_rect.width + 10, target_rect.height + 10), border_radius=12)
+                screen.blit(glow_surface, (target_rect.x - 5, target_rect.y - 5))
+            
+            # Dibujar fondo con sombra
+            shadow_rect = target_rect.copy()
+            shadow_rect.x += 3
+            shadow_rect.y += 3
+            pygame.draw.rect(screen, (20, 20, 30), shadow_rect, border_radius=10)
+            
+            # Dibujar el objetivo principal
+            pygame.draw.rect(screen, bg_color, target_rect, border_radius=10)
+            pygame.draw.rect(screen, border_color, target_rect, 2, border_radius=10)
+            
+            # Dibujar un ícono decorativo (rombo para objetivos)
+            icon_x = target_rect.x + 25
+            icon_y = target_rect.centery
+            icon_size = 8
+            
+            icon_points = [
+                (icon_x, icon_y - icon_size),
+                (icon_x + icon_size, icon_y),
+                (icon_x, icon_y + icon_size),
+                (icon_x - icon_size, icon_y)
+            ]
+            
+            if target.get("matched", False):
+                pygame.draw.polygon(screen, (220, 220, 220), icon_points)
+                pygame.draw.polygon(screen, border_color, icon_points, 1)
+            else:
+                pygame.draw.polygon(screen, (180, 180, 180), icon_points)
+                pygame.draw.polygon(screen, border_color, icon_points, 1)
+            
+            # Dibujar el texto centrado
+            font_target = pygame.font.Font(None, 18)  # Fuente más legible
+            target_text = font_target.render(target["name"], True, text_color)
+            text_rect = target_text.get_rect(center=(target_rect.centerx + 10, target_rect.centery))  # Ligeramente desplazado para no solapar el ícono
             screen.blit(target_text, text_rect)
 
-        # Si se está mostrando el resultado
+        # Renderizar las partículas (para efectos de éxito)
+        if self.use_particle_effects:
+            for particle in self.particles:
+                # Calcular opacidad basada en la vida restante
+                alpha = 255 * (1 - particle['age'] / particle['lifetime'])
+                color = (*particle['color'], int(alpha))
+                
+                # Dibujar partícula como círculo semi-transparente
+                surf = pygame.Surface((particle['size'] * 2, particle['size'] * 2), pygame.SRCALPHA)
+                pygame.draw.circle(surf, color, (particle['size'], particle['size']), particle['size'])
+                screen.blit(surf, (particle['x'] - particle['size'], particle['y'] - particle['size']))
+
+        # Si se está mostrando un mensaje de resultado
         if self.show_result:
-            # Crear un panel de resultado más atractivo
-            result_rect = pygame.Rect(WINDOW_WIDTH // 2 - 250, WINDOW_HEIGHT // 2 - 60, 500, 120)
+            self._render_result_modal(screen)
 
-            # Dibujar un panel con borde redondeado y sombra
-            shadow_rect = result_rect.copy()
-            shadow_rect.x += 5
-            shadow_rect.y += 5
-            pygame.draw.rect(screen, (20, 20, 20, 150), shadow_rect, border_radius=15)
+    def _render_result_modal(self, screen):
+        """Renderizar el modal de resultado con mejor estética"""
+        # Crear un fondo oscurecido para destacar el modal
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))  # Negro semitransparente
+        screen.blit(overlay, (0, 0))
+        
+        # Configurar el modal
+        modal_width = 500
+        modal_height = 150
+        modal_x = (WINDOW_WIDTH - modal_width) // 2
+        modal_y = (WINDOW_HEIGHT - modal_height) // 2
+        
+        # Efecto de brillo para el modal
+        for i in range(5, 0, -1):
+            glow_color = (*self.result_color, 20 * i)  # Color con transparencia gradual
+            glow_rect = pygame.Rect(
+                modal_x - i * 2, 
+                modal_y - i * 2, 
+                modal_width + i * 4, 
+                modal_height + i * 4
+            )
+            pygame.draw.rect(screen, glow_color, glow_rect, border_radius=15)
+        
+        # Panel principal
+        if self.completed:
+            bg_color = (20, 60, 30)  # Verde oscuro para éxito
+        else:
+            bg_color = (60, 20, 20)  # Rojo oscuro para error
+        
+        # Dibujar panel principal
+        pygame.draw.rect(screen, bg_color, (modal_x, modal_y, modal_width, modal_height), border_radius=15)
+        pygame.draw.rect(screen, self.result_color, (modal_x, modal_y, modal_width, modal_height), 3, border_radius=15)
+        
+        # Título con efecto de sombra
+        title = "¡ÉXITO!" if self.completed else "ERROR"
+        font_title = pygame.font.Font(None, 32)  # Fuente más grande
+        
+        # Sombra
+        shadow_text = font_title.render(title, True, (20, 20, 20))
+        shadow_rect = shadow_text.get_rect(center=(modal_x + modal_width // 2 + 2, modal_y + 30 + 2))
+        screen.blit(shadow_text, shadow_rect)
+        
+        # Texto principal
+        title_text = font_title.render(title, True, self.result_color)
+        title_rect = title_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 30))
+        screen.blit(title_text, title_rect)
+        
+        # Mensaje con mejor formato
+        font_message = pygame.font.Font(None, 20)
+        text_color = (200, 255, 200) if self.completed else (255, 200, 200)
+        message_lines = self._wrap_text(self.result_message, font_message, modal_width - 60)
+        
+        for i, line in enumerate(message_lines):
+            line_text = font_message.render(line, True, text_color)
+            line_rect = line_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 70 + i * 24))
+            screen.blit(line_text, line_rect)
+        
+        # Botón decorativo
+        if self.completed:
+            # Botón más grande y destacado para "Aceptar"
+            button_rect = pygame.Rect(modal_x + modal_width // 2 - 70, modal_y + modal_height - 40, 140, 35)
+            
+            # Añadir pulsación animada al botón
+            glow_factor = (math.sin(self.animation_time * 0.1) + 1) / 2
+            button_bg = (
+                int(40 + 20 * glow_factor),
+                int(100 + 40 * glow_factor),
+                int(40 + 20 * glow_factor)
+            )
+            
+            # Efecto 3D mejorado para el botón
+            pygame.draw.rect(screen, (15, 40, 15), (button_rect.x + 4, button_rect.y + 4, button_rect.width, button_rect.height), border_radius=10)
+            pygame.draw.rect(screen, button_bg, button_rect, border_radius=10)
+            pygame.draw.rect(screen, (120, 230, 120), button_rect, 3, border_radius=10)
+            
+            # Texto del botón más grande y con sombra
+            font_btn = pygame.font.Font(None, 24)
+            shadow_btn_text = font_btn.render("ACEPTAR", True, (20, 60, 20))
+            btn_text = font_btn.render("ACEPTAR", True, (230, 255, 230))
+            
+            # Sombra
+            shadow_btn_rect = shadow_btn_text.get_rect(center=(button_rect.centerx + 2, button_rect.centery + 2))
+            screen.blit(shadow_btn_text, shadow_btn_rect)
+            
+            # Texto principal
+            btn_rect = btn_text.get_rect(center=button_rect.center)
+            screen.blit(btn_text, btn_rect)
+        else:
+            # Botón más simple para mensajes de error
+            error_close_rect = pygame.Rect(modal_x + modal_width // 2 - 40, modal_y + modal_height - 40, 80, 25)
+            pygame.draw.rect(screen, (100, 40, 40), error_close_rect, border_radius=8)
+            pygame.draw.rect(screen, self.result_color, error_close_rect, 2, border_radius=8)
+            
+            btn_text = pygame.font.Font(None, 18).render("Cerrar", True, WHITE)
+            btn_rect = btn_text.get_rect(center=error_close_rect.center)
+            screen.blit(btn_text, btn_rect)
 
-            # Panel principal
-            draw_panel(screen, result_rect.x, result_rect.y, result_rect.width, result_rect.height, CHARCOAL, self.result_color, 3, 15)
-
-            # Dibujar el mensaje con una fuente más pequeña y clara
-            font_result = pygame.font.Font(None, 18)  # Usar la fuente por defecto con tamaño 18
-            text_surface = font_result.render(self.result_message, True, WHITE)
-            text_rect = text_surface.get_rect(center=(result_rect.centerx, result_rect.centery))
-            screen.blit(text_surface, text_rect)
-
-            # Si es un mensaje de error, mostrar un botón de cerrar más pequeño
-            if not self.completed:
-                error_close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 40, WINDOW_HEIGHT // 2 + 30, 80, 30)
-                # Sombra para el botón
-                shadow_btn = error_close_rect.copy()
-                shadow_btn.x += 2
-                shadow_btn.y += 2
-                pygame.draw.rect(screen, (20, 20, 20, 150), shadow_btn, border_radius=5)
-                # Botón principal
-                draw_panel(screen, error_close_rect.x, error_close_rect.y, error_close_rect.width, error_close_rect.height, CHARCOAL, self.result_color, 2, 5)
-                # Texto del botón
-                font_btn = pygame.font.Font(None, 14)  # Fuente más pequeña para el botón de error
-                btn_text = font_btn.render("Cerrar", True, WHITE)
-                btn_rect = btn_text.get_rect(center=(error_close_rect.centerx, error_close_rect.centery))
-                screen.blit(btn_text, btn_rect)
-
-            # Botón de cerrar si la actividad está completada
-            if self.completed:
-                close_rect = pygame.Rect(WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT // 2 + 100, 120, 45)
-
-                # Sombra para el botón
-                shadow_btn = close_rect.copy()
-                shadow_btn.x += 3
-                shadow_btn.y += 3
-                pygame.draw.rect(screen, (20, 20, 20, 150), shadow_btn, border_radius=10)
-
-                # Botón principal
-                draw_panel(screen, close_rect.x, close_rect.y, close_rect.width, close_rect.height, CHARCOAL, GREEN, 2, 10)
-
-                # Texto del botón
-                font_btn = pygame.font.Font(None, 16)  # Usar la fuente por defecto con tamaño 16
-                btn_text = font_btn.render("Cerrar", True, WHITE)
-                btn_rect = btn_text.get_rect(center=(close_rect.centerx, close_rect.centery))
-                screen.blit(btn_text, btn_rect)
+    def _wrap_text(self, text, font, max_width):
+        """Divide un texto en líneas para ajustarse al ancho máximo."""
+        words = text.split()
+        lines = []
+        current_line = []
+        
+        for word in words:
+            test_line = " ".join(current_line + [word])
+            if font.size(test_line)[0] <= max_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(" ".join(current_line))
+                    current_line = [word]
+                else:
+                    # Si una palabra es demasiado larga, añadirla de todas formas
+                    lines.append(word)
+                    
+        if current_line:
+            lines.append(" ".join(current_line))
+            
+        return lines
 
     def _get_item_rect(self, index):
         """Obtener el rectángulo para un elemento"""
@@ -908,12 +1230,37 @@ class PMBOKPlanningRoom(Room):
             print(f"Error loading background image: {e}")
             self.scaled_bg = None
 
+        # Cargar la imagen de la misión
+        mission_path = os.path.join("img", "MISION.png")
+        try:
+            mission_img = pygame.image.load(mission_path).convert_alpha()
+            self.mission_img = pygame.transform.scale(mission_img, (120, 120))  # Tamaño más grande para mejor visibilidad
+        except Exception as e:
+            print(f"Error loading mission image: {e}")
+            self.mission_img = None
+
+        # Crear la actividad educativa (usar la nueva actividad de planificación)
+        from activities.pmbok_planning_activity import PMBOKPlanningActivity
+        self.activity = PMBOKPlanningActivity()
+
+        # Área interactiva para la misión (usando el nuevo rectángulo especificado)
+        self.mission_rect = pygame.Rect(434, 175, 540-434, 337-175)
+        self.player_near_mission = False
+
+        # Variables para la animación de flotación
+        self.animation_time = 0
+        self.float_amplitude = 10  # Amplitud de la flotación (en píxeles)
+        self.float_speed = 0.05    # Velocidad de la flotación
+        self.rotation_amplitude = 5  # Amplitud de la rotación (en grados)
+        self.glow_value = 0        # Valor para el efecto de brillo
+
         self._setup_room()
 
     def _setup_room(self):
         """Set up room display only"""
         self.completed = True
         self.player_in_transition_area = False  # Inicializar variable para el área de transición
+        self.player_near_mission = False  # Inicializar variable para el área de la misión
 
         # Definir las áreas de colisión especificadas
         self.collision_rects = [
@@ -963,12 +1310,99 @@ class PMBOKPlanningRoom(Room):
             self.player_in_transition_area = False
 
         return inside_area
+        
+    def check_mission_area(self, player_rect):
+        """Check if player is near the mission area"""
+        # Importar pygame al inicio del método para evitar errores
+        import pygame
+
+        # Convertir las coordenadas relativas a absolutas para el área de la misión
+        mission_rect_abs = pygame.Rect(
+            self.mission_rect.x + self.bg_x_offset,
+            self.mission_rect.y + self.bg_y_offset,
+            self.mission_rect.width,
+            self.mission_rect.height
+        )
+
+        # Crear un rectángulo más grande para detectar proximidad
+        proximity_rect = mission_rect_abs.inflate(100, 100)  # 100 píxeles más grande en cada dirección para facilitar la interacción
+
+        # Verificar si el jugador está cerca del área de la misión
+        near_mission = proximity_rect.colliderect(player_rect)
+
+        # Dibujar el área de la misión en modo debug
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 255), mission_rect_abs, 2)
+            pygame.draw.rect(pygame.display.get_surface(), (0, 200, 200), proximity_rect, 1)
+            if near_mission:
+                pygame.draw.rect(pygame.display.get_surface(), (255, 255, 0), proximity_rect, 1)
+                print("Jugador cerca del área de la misión")
+
+        # Actualizar el estado
+        self.player_near_mission = near_mission
+
+        return near_mission
 
     def render(self, screen):
         if self.scaled_bg:
             screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
         else:
             screen.fill((0,0,0))
+
+        # Dibujar la imagen de la misión con animación
+        if self.mission_img:
+            # Calcular la posición base para centrar la imagen en el rectángulo
+            base_x = self.mission_rect.x + self.bg_x_offset + (self.mission_rect.width - self.mission_img.get_width()) // 2
+            base_y = self.mission_rect.y + self.bg_y_offset + (self.mission_rect.height - self.mission_img.get_height()) // 2
+
+            # Aplicar efecto de flotación usando funciones sinusoidales
+            float_offset_y = math.sin(self.animation_time * self.float_speed) * self.float_amplitude
+
+            # Posición final con efecto de flotación
+            mission_pos = (base_x, base_y + float_offset_y)
+
+            # Aplicar efecto de brillo si el jugador está cerca
+            if self.player_near_mission:
+                # Crear una superficie para el halo
+                glow_width = self.mission_img.get_width() + 20
+                glow_height = self.mission_img.get_height() + 20
+                glow_surface = pygame.Surface((glow_width, glow_height), pygame.SRCALPHA)
+
+                # Dibujar un halo alrededor de la imagen
+                glow_color = (255, 255, 100, int(100 * self.glow_value))  # Amarillo con transparencia variable
+                pygame.draw.circle(
+                    glow_surface,
+                    glow_color,
+                    (glow_width // 2, glow_height // 2),
+                    min(glow_width, glow_height) // 2 - 5
+                )
+
+                # Dibujar el halo
+                glow_pos = (mission_pos[0] - 10, mission_pos[1] - 10)
+                screen.blit(glow_surface, glow_pos)
+
+            # Dibujar la imagen principal
+            screen.blit(self.mission_img, mission_pos)
+
+            # Efecto simple de partículas si el jugador está cerca
+            if self.player_near_mission and random.random() < 0.03:  # 3% de probabilidad por frame
+                # Dibujar pequeños destellos alrededor de la imagen
+                for _ in range(2):  # Crear solo 2 partículas a la vez para evitar sobrecarga
+                    # Posición aleatoria alrededor de la imagen
+                    offset_x = random.randint(-20, 20)
+                    offset_y = random.randint(-20, 20)
+                    particle_pos = (
+                        mission_pos[0] + self.mission_img.get_width() // 2 + offset_x,
+                        mission_pos[1] + self.mission_img.get_height() // 2 + offset_y
+                    )
+                    # Color aleatorio para el destello
+                    particle_color = (
+                        random.randint(200, 255),
+                        random.randint(200, 255),
+                        random.randint(200, 255)
+                    )
+                    # Dibujar un pequeño círculo como destello
+                    pygame.draw.circle(screen, particle_color, particle_pos, random.randint(1, 3))
 
         # Solo dibuja los rectángulos de colisión si estamos en modo debug
         if DEBUG_MODE:
@@ -987,11 +1421,26 @@ class PMBOKPlanningRoom(Room):
                 )
                 pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
 
+    def update(self):
+        """Update room state"""
+        super().update()  # Llamar al método update de la clase padre
+
+        # Actualizar el tiempo de animación
+        self.animation_time += 1
+
+        # Actualizar el valor de brillo (oscila entre 0 y 1)
+        self.glow_value = (math.sin(self.animation_time * 0.05) + 1) / 2
+
     def _check_completion(self):
         """Room is always completed"""
         self.completed = True
 
     def handle_event(self, event):
+        # Si la actividad está activa, manejar sus eventos
+        if self.activity.active:
+            self.activity.handle_event(event)
+            return
+            
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
                 self.start_pos = pygame.mouse.get_pos()
@@ -1015,11 +1464,17 @@ class PMBOKPlanningRoom(Room):
         elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
             if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
                 self.collision_rects = []
+            elif event.key == pygame.K_SPACE:  # Tecla espacio para interactuar con la misión
+                # Verificar si el jugador está cerca del área de la misión
+                if self.player_near_mission:
+                    # Activar la actividad educativa
+                    self.activity.activate()
+                    print("Actividad educativa activada")
 
 
 class PMBOKExecutionRoom(Room):
     def __init__(self, content):
-        super().__init__("PMBOK: Execution Phase", "Learn about project execution", GREEN)
+        super().__init__("PMBOK: Execution Phase", "Aprende sobre la ejecución del proyecto", BLUE, "blue")
         self.content = content
         self.collision_rects = []  # Lista para los rectángulos de colisión
 
@@ -1038,12 +1493,37 @@ class PMBOKExecutionRoom(Room):
             print(f"Error loading background image: {e}")
             self.scaled_bg = None
 
+        # Cargar la imagen de la misión
+        mission_path = os.path.join("img", "MISION.png")
+        try:
+            mission_img = pygame.image.load(mission_path).convert_alpha()
+            self.mission_img = pygame.transform.scale(mission_img, (120, 120))  # Tamaño más grande para mejor visibilidad
+        except Exception as e:
+            print(f"Error loading mission image: {e}")
+            self.mission_img = None
+
+        # Crear la actividad educativa para la sala de ejecución
+        from activities.pmbok_execution_activity import PMBOKExecutionActivity
+        self.activity = PMBOKExecutionActivity()
+
+        # Área interactiva para la misión - Usa las coordenadas definidas anteriormente
+        self.mission_rect = pygame.Rect(451, 342, 553-451, 454-342)
+        self.player_near_mission = False
+
+        # Variables para la animación de flotación
+        self.animation_time = 0
+        self.float_amplitude = 10  # Amplitud de la flotación (en píxeles)
+        self.float_speed = 0.05
+        self.rotation_amplitude = 5  # Amplitud de la rotación (en grados)
+        self.glow_value = 0        # Valor para el efecto de brillo
+
         self._setup_room()
 
     def _setup_room(self):
         """Set up room display only"""
         self.completed = True
         self.player_in_transition_area = False  # Inicializar variable para el área de transición
+        self.player_near_mission = False  # Inicializar variable para el área de la misión
 
         # Definir las áreas de colisión especificadas
         self.collision_rects = [
@@ -1097,12 +1577,99 @@ class PMBOKExecutionRoom(Room):
         self.player_in_transition_area = near_area
 
         return near_area
+        
+    def check_mission_area(self, player_rect):
+        """Check if player is near the mission area"""
+        # Importar pygame al inicio del método para evitar errores
+        import pygame
+
+        # Convertir las coordenadas relativas a absolutas para el área de la misión
+        mission_rect_abs = pygame.Rect(
+            self.mission_rect.x + self.bg_x_offset,
+            self.mission_rect.y + self.bg_y_offset,
+            self.mission_rect.width,
+            self.mission_rect.height
+        )
+
+        # Crear un rectángulo más grande para detectar proximidad
+        proximity_rect = mission_rect_abs.inflate(100, 100)  # 100 píxeles más grande en cada dirección para facilitar la interacción
+
+        # Verificar si el jugador está cerca del área de la misión
+        near_mission = proximity_rect.colliderect(player_rect)
+
+        # Dibujar el área de la misión en modo debug
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 255), mission_rect_abs, 2)
+            pygame.draw.rect(pygame.display.get_surface(), (0, 200, 200), proximity_rect, 1)
+            if near_mission:
+                pygame.draw.rect(pygame.display.get_surface(), (255, 255, 0), proximity_rect, 1)
+                print("Jugador cerca del área de la misión")
+
+        # Actualizar el estado
+        self.player_near_mission = near_mission
+
+        return near_mission
 
     def render(self, screen):
         if self.scaled_bg:
             screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
         else:
             screen.fill((0,0,0))
+
+        # Dibujar la imagen de la misión con animación
+        if self.mission_img:
+            # Calcular la posición base para centrar la imagen en el rectángulo
+            base_x = self.mission_rect.x + self.bg_x_offset + (self.mission_rect.width - self.mission_img.get_width()) // 2
+            base_y = self.mission_rect.y + self.bg_y_offset + (self.mission_rect.height - self.mission_img.get_height()) // 2
+
+            # Aplicar efecto de flotación usando funciones sinusoidales
+            float_offset_y = math.sin(self.animation_time * self.float_speed) * self.float_amplitude
+
+            # Posición final con efecto de flotación
+            mission_pos = (base_x, base_y + float_offset_y)
+
+            # Aplicar efecto de brillo si el jugador está cerca
+            if self.player_near_mission:
+                # Crear una superficie para el halo
+                glow_width = self.mission_img.get_width() + 20
+                glow_height = self.mission_img.get_height() + 20
+                glow_surface = pygame.Surface((glow_width, glow_height), pygame.SRCALPHA)
+
+                # Dibujar un halo alrededor de la imagen
+                glow_color = (255, 255, 100, int(100 * self.glow_value))  # Amarillo con transparencia variable
+                pygame.draw.circle(
+                    glow_surface,
+                    glow_color,
+                    (glow_width // 2, glow_height // 2),
+                    min(glow_width, glow_height) // 2 - 5
+                )
+
+                # Dibujar el halo
+                glow_pos = (mission_pos[0] - 10, mission_pos[1] - 10)
+                screen.blit(glow_surface, glow_pos)
+
+            # Dibujar la imagen principal
+            screen.blit(self.mission_img, mission_pos)
+
+            # Efecto simple de partículas si el jugador está cerca
+            if self.player_near_mission and random.random() < 0.03:  # 3% de probabilidad por frame
+                # Dibujar pequeños destellos alrededor de la imagen
+                for _ in range(2):  # Crear solo 2 partículas a la vez para evitar sobrecarga
+                    # Posición aleatoria alrededor de la imagen
+                    offset_x = random.randint(-20, 20)
+                    offset_y = random.randint(-20, 20)
+                    particle_pos = (
+                        mission_pos[0] + self.mission_img.get_width() // 2 + offset_x,
+                        mission_pos[1] + self.mission_img.get_height() // 2 + offset_y
+                    )
+                    # Color aleatorio para el destello
+                    particle_color = (
+                        random.randint(200, 255),
+                        random.randint(200, 255),
+                        random.randint(200, 255)
+                    )
+                    # Dibujar un pequeño círculo como destello
+                    pygame.draw.circle(screen, particle_color, particle_pos, random.randint(1, 3))
 
         # Solo dibuja los rectángulos de colisión si estamos en modo debug
         if DEBUG_MODE:
@@ -1121,11 +1688,26 @@ class PMBOKExecutionRoom(Room):
                 )
                 pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
 
+    def update(self):
+        """Update room state"""
+        super().update()  # Llamar al método update de la clase padre
+
+        # Actualizar el tiempo de animación
+        self.animation_time += 1
+
+        # Actualizar el valor de brillo (oscila entre 0 y 1)
+        self.glow_value = (math.sin(self.animation_time * 0.05) + 1) / 2
+
     def _check_completion(self):
         """Room is always completed"""
         self.completed = True
 
     def handle_event(self, event):
+        # Si la actividad está activa, manejar sus eventos
+        if self.activity.active:
+            self.activity.handle_event(event)
+            return
+            
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
                 self.start_pos = pygame.mouse.get_pos()
@@ -1149,11 +1731,17 @@ class PMBOKExecutionRoom(Room):
         elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
             if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
                 self.collision_rects = []
+            elif event.key == pygame.K_SPACE:  # Tecla espacio para interactuar con la misión
+                # Verificar si el jugador está cerca del área de la misión
+                if self.player_near_mission:
+                    # Activar la actividad educativa
+                    self.activity.activate()
+                    print("Actividad educativa activada")
 
 
 class PMBOKClosingRoom(Room):
     def __init__(self, content):
-        super().__init__("PMBOK: Closing Phase", "Learn about project closure", RED)
+        super().__init__("PMBOK: Closing Phase", "Aprende sobre el cierre del proyecto", ORANGE, "orange")
         self.content = content
         self.collision_rects = []  # Lista para los rectángulos de colisión
 
@@ -1172,12 +1760,37 @@ class PMBOKClosingRoom(Room):
             print(f"Error loading background image: {e}")
             self.scaled_bg = None
 
+        # Cargar la imagen de la misión
+        mission_path = os.path.join("img", "MISION.png")
+        try:
+            mission_img = pygame.image.load(mission_path).convert_alpha()
+            self.mission_img = pygame.transform.scale(mission_img, (120, 120))  # Tamaño más grande para mejor visibilidad
+        except Exception as e:
+            print(f"Error loading mission image: {e}")
+            self.mission_img = None
+
+        # Crear la actividad educativa para la sala de cierre
+        from activities.pmbok_closing_activity import PMBOKClosingActivity
+        self.activity = PMBOKClosingActivity()
+
+        # Área interactiva para la misión - Usa las coordenadas definidas anteriormente
+        self.mission_rect = pygame.Rect(410, 344, 555-410, 442-344)
+        self.player_near_mission = False
+
+        # Variables para la animación de flotación
+        self.animation_time = 0
+        self.float_amplitude = 10  # Amplitud de la flotación (en píxeles)
+        self.float_speed = 0.05
+        self.rotation_amplitude = 5  # Amplitud de la rotación (en grados)
+        self.glow_value = 0        # Valor para el efecto de brillo
+
         self._setup_room()
 
     def _setup_room(self):
         """Set up room display only"""
         self.completed = True
         self.player_in_transition_area = False  # Inicializar variable para el área de transición
+        self.player_near_mission = False  # Inicializar variable para el área de la misión
 
         # Definir las áreas de colisión especificadas
         self.collision_rects = [
@@ -1231,12 +1844,99 @@ class PMBOKClosingRoom(Room):
         self.player_in_transition_area = near_area
 
         return near_area
+        
+    def check_mission_area(self, player_rect):
+        """Check if player is near the mission area"""
+        # Importar pygame al inicio del método para evitar errores
+        import pygame
+
+        # Convertir las coordenadas relativas a absolutas para el área de la misión
+        mission_rect_abs = pygame.Rect(
+            self.mission_rect.x + self.bg_x_offset,
+            self.mission_rect.y + self.bg_y_offset,
+            self.mission_rect.width,
+            self.mission_rect.height
+        )
+
+        # Crear un rectángulo más grande para detectar proximidad
+        proximity_rect = mission_rect_abs.inflate(100, 100)  # 100 píxeles más grande en cada dirección para facilitar la interacción
+
+        # Verificar si el jugador está cerca del área de la misión
+        near_mission = proximity_rect.colliderect(player_rect)
+
+        # Dibujar el área de la misión en modo debug
+        if DEBUG_MODE:
+            pygame.draw.rect(pygame.display.get_surface(), (0, 255, 255), mission_rect_abs, 2)
+            pygame.draw.rect(pygame.display.get_surface(), (0, 200, 200), proximity_rect, 1)
+            if near_mission:
+                pygame.draw.rect(pygame.display.get_surface(), (255, 255, 0), proximity_rect, 1)
+                print("Jugador cerca del área de la misión")
+
+        # Actualizar el estado
+        self.player_near_mission = near_mission
+
+        return near_mission
 
     def render(self, screen):
         if self.scaled_bg:
             screen.blit(self.scaled_bg, (self.bg_x_offset, self.bg_y_offset))
         else:
             screen.fill((0,0,0))
+
+        # Dibujar la imagen de la misión con animación
+        if self.mission_img:
+            # Calcular la posición base para centrar la imagen en el rectángulo
+            base_x = self.mission_rect.x + self.bg_x_offset + (self.mission_rect.width - self.mission_img.get_width()) // 2
+            base_y = self.mission_rect.y + self.bg_y_offset + (self.mission_rect.height - self.mission_img.get_height()) // 2
+
+            # Aplicar efecto de flotación usando funciones sinusoidales
+            float_offset_y = math.sin(self.animation_time * self.float_speed) * self.float_amplitude
+
+            # Posición final con efecto de flotación
+            mission_pos = (base_x, base_y + float_offset_y)
+
+            # Aplicar efecto de brillo si el jugador está cerca
+            if self.player_near_mission:
+                # Crear una superficie para el halo
+                glow_width = self.mission_img.get_width() + 20
+                glow_height = self.mission_img.get_height() + 20
+                glow_surface = pygame.Surface((glow_width, glow_height), pygame.SRCALPHA)
+
+                # Dibujar un halo alrededor de la imagen
+                glow_color = (255, 255, 100, int(100 * self.glow_value))  # Amarillo con transparencia variable
+                pygame.draw.circle(
+                    glow_surface,
+                    glow_color,
+                    (glow_width // 2, glow_height // 2),
+                    min(glow_width, glow_height) // 2 - 5
+                )
+
+                # Dibujar el halo
+                glow_pos = (mission_pos[0] - 10, mission_pos[1] - 10)
+                screen.blit(glow_surface, glow_pos)
+
+            # Dibujar la imagen principal
+            screen.blit(self.mission_img, mission_pos)
+
+            # Efecto simple de partículas si el jugador está cerca
+            if self.player_near_mission and random.random() < 0.03:  # 3% de probabilidad por frame
+                # Dibujar pequeños destellos alrededor de la imagen
+                for _ in range(2):  # Crear solo 2 partículas a la vez para evitar sobrecarga
+                    # Posición aleatoria alrededor de la imagen
+                    offset_x = random.randint(-20, 20)
+                    offset_y = random.randint(-20, 20)
+                    particle_pos = (
+                        mission_pos[0] + self.mission_img.get_width() // 2 + offset_x,
+                        mission_pos[1] + self.mission_img.get_height() // 2 + offset_y
+                    )
+                    # Color aleatorio para el destello
+                    particle_color = (
+                        random.randint(200, 255),
+                        random.randint(200, 255),
+                        random.randint(200, 255)
+                    )
+                    # Dibujar un pequeño círculo como destello
+                    pygame.draw.circle(screen, particle_color, particle_pos, random.randint(1, 3))
 
         # Solo dibuja los rectángulos de colisión si estamos en modo debug
         if DEBUG_MODE:
@@ -1255,11 +1955,26 @@ class PMBOKClosingRoom(Room):
                 )
                 pygame.draw.rect(screen, (255, 165, 0), preview_rect, 2)  # Naranja para el preview
 
+    def update(self):
+        """Update room state"""
+        super().update()  # Llamar al método update de la clase padre
+
+        # Actualizar el tiempo de animación
+        self.animation_time += 1
+
+        # Actualizar el valor de brillo (oscila entre 0 y 1)
+        self.glow_value = (math.sin(self.animation_time * 0.05) + 1) / 2
+
     def _check_completion(self):
         """Room is always completed"""
         self.completed = True
 
     def handle_event(self, event):
+        # Si la actividad está activa, manejar sus eventos
+        if self.activity.active:
+            self.activity.handle_event(event)
+            return
+            
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:  # Clic izquierdo para iniciar un rectángulo
                 self.start_pos = pygame.mouse.get_pos()
@@ -1283,10 +1998,13 @@ class PMBOKClosingRoom(Room):
         elif event.type == pygame.KEYDOWN:  # Separar el evento de teclado
             if event.key == pygame.K_c:  # Tecla 'c' para limpiar todos los rectángulos
                 self.collision_rects = []
+            elif event.key == pygame.K_SPACE:  # Tecla espacio para interactuar con la misión
+                # Verificar si el jugador está cerca del área de la misión
+                if self.player_near_mission:
+                    # Activar la actividad educativa
+                    self.activity.activate()
+                    print("Actividad educativa activada")
 
-import pygame
-from settings import *
-from utils import draw_panel
 
 class ScrumPrioritizationActivity:
     def __init__(self, game_instance):
@@ -1609,7 +2327,7 @@ class ScrumPrioritizationActivity:
              # Ajustar altura dinámica según las líneas de retroalimentación
             lines = self._wrap_text(self.result_message, font, modal_width - 40)
             line_height = 25
-            modal_height = 80 + len(lines) * line_height
+            modal_height = 100 + len(lines) * line_height  # Aumentado de 80 a 100 para dar más espacio
             
             modal_x = (WINDOW_WIDTH - modal_width) // 2
             modal_y = (WINDOW_HEIGHT - modal_height) // 2
@@ -1624,11 +2342,11 @@ class ScrumPrioritizationActivity:
                 text_rect = text_surf.get_rect(center=(modal_x + modal_width // 2, modal_y + 40 + i * 25))
                 screen.blit(text_surf, text_rect)
 
-            # Botón de cerrar
+            # Botón de cerrar - Ahora más abajo
             btn_width = 100
             btn_height = 35
             btn_x = modal_x + (modal_width - btn_width) // 2
-            btn_y = modal_y + modal_height - btn_height - 10
+            btn_y = modal_y + modal_height - btn_height - 20  # Aumentado de 10 a 20 para bajar más el botón
             self.feedback_button_rect = pygame.Rect(btn_x, btn_y, btn_width, btn_height)
 
             pygame.draw.rect(screen, (200, 80, 60), self.feedback_button_rect, border_radius=10)
@@ -1961,7 +2679,7 @@ class ScrumRolesRoom(Room):
             font = pygame.font.Font(None, 22)
             # Texto largo que se adapta al ancho
             info_text = (
-                "¡Hola! Soy el Product Owner del proyecto ‘DocOnline’, una plataforma web para reservar citas médicas. Nuestro objetivo es lanzar una versión mínima funcional lo antes posible para que los pacientes puedan agendar y consultar sus citas desde casa. Todo lo que no afecte directamente esta experiencia puede esperar."
+                "¡Hola! Soy el Product Owner del proyecto 'DocOnline', una plataforma web para reservar citas médicas. Nuestro objetivo es lanzar una versión mínima funcional lo antes posible para que los pacientes puedan agendar y consultar sus citas desde casa. Todo lo que no afecte directamente esta experiencia puede esperar."
             )
 
             # Usa el método de envoltura de texto ya existente
@@ -2342,7 +3060,12 @@ class ScrumSala2:
         modal_width = 500
         font = pygame.font.Font(None, 22)
         lines = self._wrap_text(message, font, modal_width - 40)
-        modal_height = 80 + len(lines) * 18
+        
+        # Aumentar espacio vertical para el texto
+        line_spacing = 20  # Aumentado de 18 a 20
+        
+        # Aumentar altura del modal según el texto
+        modal_height = 100 + len(lines) * line_spacing  # Aumentado de 80 a 100
         modal_x = (screen.get_width() - modal_width) // 2
         modal_y = (screen.get_height() - modal_height) // 2
 
@@ -2351,14 +3074,14 @@ class ScrumSala2:
 
         for i, line in enumerate(lines):
             text = font.render(line, True, color)
-            text_rect = text.get_rect(center=(modal_x + modal_width // 2, modal_y + 40 + i * 15))
+            text_rect = text.get_rect(center=(modal_x + modal_width // 2, modal_y + 40 + i * line_spacing))
             screen.blit(text, text_rect)
 
-        # Botón
+        # Botón - alejado del texto
         btn_width = 120
         btn_height = 35
         btn_x = modal_x + (modal_width - btn_width) // 2
-        btn_y = modal_y + modal_height - 50
+        btn_y = modal_y + modal_height - btn_height - 20  # Aumentado de 50 a 20 para posicionarlo más abajo
         rect_btn = pygame.Rect(btn_x, btn_y, btn_width, btn_height)
 
         pygame.draw.rect(screen, color, rect_btn, border_radius=8)

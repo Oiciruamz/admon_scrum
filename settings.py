@@ -3,7 +3,7 @@ Settings and constants for the Escape Room game.
 """
 
 # Debug settings
-DEBUG_MODE = False  # Set to True to show collision areas and other debug info
+DEBUG_MODE = True  # Set to True to show collision areas and other debug info
 
 # Game window settings
 WINDOW_WIDTH = 600
