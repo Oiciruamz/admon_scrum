@@ -35,6 +35,9 @@ class PMBOKPlanningActivity:
         self.result_color = GREEN
         self.feedback_active = False
         self.feedback_button_rect = None
+        self.error_count = 0  # Contador de errores
+        self.max_errors = 3   # Número máximo de errores permitidos
+        self.failed = False   # Flag para indicar si la actividad ha fallado (game over)
 
         # Fuentes (aumentadas un 25%)
         self.font_title = pygame.font.Font(None, 25)  # Antes 20
@@ -177,6 +180,8 @@ class PMBOKPlanningActivity:
         self.completed = False
         self.show_result = False
         self.feedback_active = False
+        self.error_count = 0  # Reiniciar contador de errores
+        self.failed = False   # Reiniciar estado de fallo
         
         # Reiniciar el estado de las tareas
         for tarea in self.tareas:
@@ -202,15 +207,26 @@ class PMBOKPlanningActivity:
         if not self.active:
             return
 
-        # Manejar eventos cuando se muestra el resultado
-        if self.show_result and hasattr(self, 'result_button_rect'):
+        # Si hay un resultado mostrándose (éxito o error)
+        if self.show_result:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if self.result_button_rect.collidepoint(event.pos):
+                mouse_pos = pygame.mouse.get_pos()
+                
+                # Botón de resultado (aceptar)
+                if hasattr(self, 'result_button_rect') and self.result_button_rect.collidepoint(mouse_pos):
                     if self.completed:
+                        # Si completó exitosamente, cerrar la actividad
                         self.deactivate()
+                    elif self.failed:
+                        # Si falló definitivamente, no hacer nada (el game over se activará en la actualización)
+                        pass
                     else:
+                        # Si es un error pero aún tiene intentos, cerrar el mensaje y continuar
                         self.show_result = False
+                        
                     return
+                    
+            return  # Ignorar otros eventos mientras se muestra un resultado
 
         # Manejar eventos cuando se muestra feedback
         if self.feedback_active and hasattr(self, 'feedback_button_rect'):
@@ -219,28 +235,30 @@ class PMBOKPlanningActivity:
                     self.feedback_active = False
                     return
 
-        # Si se presiona el botón de cerrar manual
-        if hasattr(self, 'manual_close_rect') and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.manual_close_rect.collidepoint(event.pos):
-                self.deactivate()
-                return
-
-        # Verificar si se presiona el botón de verificación
-        if hasattr(self, 'verify_button_rect') and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.verify_button_rect.collidepoint(event.pos):
-                self._verificar_cronograma()
-                return
-
-        # Arrastrar y soltar tareas
+        # Arrastrar y soltar tareas - MOVIDO ANTES de la detección de botones para dar prioridad
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:  # Clic izquierdo
+                mouse_pos = event.pos
+                # Verificar primero si se hizo clic en alguna tarea
                 for tarea in self.tareas:
-                    if tarea["rect"].collidepoint(event.pos):
+                    if tarea["rect"].collidepoint(mouse_pos):
                         tarea["dragging"] = True
                         # Guardar el offset para un arrastre más natural
-                        self.drag_offset_x = event.pos[0] - tarea["rect"].x
-                        self.drag_offset_y = event.pos[1] - tarea["rect"].y
-                        break  # Solo arrastrar una tarea a la vez
+                        self.drag_offset_x = mouse_pos[0] - tarea["rect"].x
+                        self.drag_offset_y = mouse_pos[1] - tarea["rect"].y
+                        return  # Importante: salir de la función si se seleccionó una tarea
+                
+                # Si no se seleccionó ninguna tarea, LUEGO verificar botones
+                
+                # Si se presiona el botón de cerrar manual
+                if hasattr(self, 'manual_close_rect') and self.manual_close_rect.collidepoint(mouse_pos):
+                    self.deactivate()
+                    return
+    
+                # Verificar si se presiona el botón de verificación
+                if hasattr(self, 'verify_button_rect') and self.verify_button_rect.collidepoint(mouse_pos):
+                    self._verificar_cronograma()
+                    return
                         
         elif event.type == pygame.MOUSEBUTTONUP:
             if event.button == 1:  # Liberación de clic izquierdo
@@ -249,6 +267,7 @@ class PMBOKPlanningActivity:
                         tarea["dragging"] = False
                         # Verificar si la tarea se soltó sobre una celda del cronograma
                         self._check_drop_on_cell(tarea)
+                        return  # Salir después de manejar la liberación de una tarea
                         
         elif event.type == pygame.MOUSEMOTION:
             for tarea in self.tareas:
@@ -256,38 +275,51 @@ class PMBOKPlanningActivity:
                     # Actualizar posición con el offset
                     tarea["rect"].x = event.pos[0] - self.drag_offset_x
                     tarea["rect"].y = event.pos[1] - self.drag_offset_y
+                    return  # Salir después de mover una tarea
 
     def _verificar_cronograma(self):
-        """Verifica si el cronograma está correctamente organizado."""
+        """Verifica si el cronograma está completo y correctamente organizado."""
         todas_colocadas = all(tarea["colocada"] for tarea in self.tareas)
         
-        if not todas_colocadas:
+        if todas_colocadas:
+            # Verificar si todas están en la semana correcta
+            todas_correctas = True
+            for tarea in self.tareas:
+                # Obtener objeto celda
+                if tarea["celda_actual"] is None:
+                    todas_correctas = False
+                    break
+                    
+                # Verificar si la semana es correcta
+                if tarea["celda_actual"]["semana"] != tarea["semana_correcta"]:
+                    todas_correctas = False
+                    break
+            
+            if todas_correctas:
+                # Cronograma correcto, actividad completada
+                self.completed = True
+                self.show_result = True
+                self.result_message = "¡Felicidades! Has completado correctamente el cronograma del proyecto."
+                self.result_color = GREEN
+            else:
+                # Cronograma incorrecto, mostrar mensaje de error
+                self.error_count += 1
+                self.show_result = True
+                
+                if self.error_count >= self.max_errors:
+                    # Si alcanza el máximo de errores, activar game over
+                    self.failed = True
+                    self.result_message = f"Has cometido demasiados errores. ¡Game Over!"
+                    self.result_color = RED
+                else:
+                    # Mostrar mensaje de error con intentos restantes
+                    remaining = self.max_errors - self.error_count
+                    self.result_message = f"El cronograma no es correcto. Revisa la organización temporal de las tareas. Te quedan {remaining} {'intento' if remaining == 1 else 'intentos'}."
+                    self.result_color = RED
+        else:
             self.show_result = True
             self.result_message = "Debes colocar todas las tareas en el cronograma antes de verificar."
             self.result_color = YELLOW
-            return
-            
-        # Verificar si cada tarea está en la semana correcta
-        correctas = 0
-        for tarea in self.tareas:
-            if tarea["celda_actual"] and tarea["celda_actual"]["semana"] == tarea["semana_correcta"]:
-                correctas += 1
-                
-        if correctas == len(self.tareas):
-            self.completed = True
-            self.show_result = True
-            self.result_message = "¡Excelente trabajo! Has planificado correctamente las tareas del proyecto."
-            self.result_color = GREEN
-        else:
-            self.feedback_active = True
-            self.result_message = (
-                "La planificación no es óptima. Recuerda que en esta metodología debemos seguir esta distribución:\n\n"
-                "- Las tareas de Diseño abarcan las semanas 1 y 2\n"
-                "- Las tareas de Programación abarcan las semanas 2 y 3\n"
-                "- Los Retos se desarrollan en la semana 4\n\n"
-                "Asegúrate de seguir esta secuencia para un flujo de trabajo eficiente."
-            )
-            self.result_color = RED
 
     def _reset_tarea_position(self, tarea):
         """Devuelve una tarea a su posición original en el panel lateral."""
@@ -299,6 +331,13 @@ class PMBOKPlanningActivity:
         tarea["rect"].y = self.tareas_panel_y + 40 + idx * (card_height + card_margin)
         tarea["colocada"] = False
         tarea["celda_actual"] = None
+
+    def _get_fase_index(self, fase_nombre):
+        """Devuelve el índice de una fase según su nombre."""
+        for i, fase in enumerate(self.fases):
+            if fase == fase_nombre:
+                return i
+        return -1  # Si no se encuentra la fase
 
     def _wrap_text(self, text, font, max_width):
         """Divide un texto en líneas para que quepa en un ancho máximo."""
@@ -469,42 +508,71 @@ class PMBOKPlanningActivity:
             self._render_feedback_modal(screen)
             
     def _render_result_modal(self, screen):
-        """Renderiza el modal de resultado (éxito o advertencia)."""
+        """Renderiza el modal de resultado final."""
+        # Fondo oscurecido
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))  # Negro semitransparente
+        screen.blit(overlay, (0, 0))
+        
+        # Dimensiones del modal
         modal_width = 400
         modal_height = 200
         modal_x = (WINDOW_WIDTH - modal_width) // 2
         modal_y = (WINDOW_HEIGHT - modal_height) // 2
         
-        # Fondo del modal
-        pygame.draw.rect(screen, DARK_GRAY, (modal_x, modal_y, modal_width, modal_height), border_radius=15)
-        pygame.draw.rect(screen, self.result_color, (modal_x, modal_y, modal_width, modal_height), 3, border_radius=15)
+        # Fondo del modal con efecto degradado según resultado
+        if self.completed:
+            color_top = (20, 60, 20)  # Verde oscuro
+            color_bottom = (30, 80, 30)  # Verde un poco más claro
+            text_color = (200, 255, 200)  # Verde claro
+        elif self.failed:
+            color_top = (60, 20, 20)  # Rojo oscuro
+            color_bottom = (80, 30, 30)  # Rojo un poco más claro
+            text_color = (255, 200, 200)  # Rojo claro
+        else:
+            color_top = (60, 60, 20)  # Naranja oscuro
+            color_bottom = (80, 80, 30)  # Naranja un poco más claro
+            text_color = (255, 255, 200)  # Naranja claro
         
-        # Título según resultado
-        title = "¡ÉXITO!" if self.completed else "ATENCIÓN"
+        # Dibujar el panel con degradado
+        for i in range(modal_height):
+            progress = i / modal_height
+            r = int(color_top[0] + (color_bottom[0] - color_top[0]) * progress)
+            g = int(color_top[1] + (color_bottom[1] - color_top[1]) * progress)
+            b = int(color_top[2] + (color_bottom[2] - color_top[2]) * progress)
+            pygame.draw.line(screen, (r, g, b), (modal_x, modal_y + i), (modal_x + modal_width, modal_y + i))
+        
+        # Borde del modal
+        pygame.draw.rect(screen, self.result_color, (modal_x, modal_y, modal_width, modal_height), 3, border_radius=10)
+        
+        # Título con efecto de sombra
+        title = "¡ÉXITO!" if self.completed else "¡GAME OVER!" if self.failed else "ERROR"
+        title_shadow = self.font_title.render(title, True, (0, 0, 0))
         title_text = self.font_title.render(title, True, self.result_color)
-        title_rect = title_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 30))
-        screen.blit(title_text, title_rect)
         
-        # Mensaje
-        lines = self._wrap_text(self.result_message, self.font_small, modal_width - 40)
-        for i, line in enumerate(lines):
-            line_text = self.font_small.render(line, True, WHITE)
-            line_rect = line_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 70 + i * 25))
+        # Dibujar sombra y luego texto
+        screen.blit(title_shadow, (modal_x + modal_width // 2 - title_shadow.get_width() // 2 + 2, modal_y + 30 + 2))
+        screen.blit(title_text, (modal_x + modal_width // 2 - title_text.get_width() // 2, modal_y + 30))
+        
+        # Mensaje de resultado con wrapping
+        wrapped_lines = self._wrap_text(self.result_message, self.font_small, modal_width - 60)
+        for i, line in enumerate(wrapped_lines):
+            line_text = self.font_small.render(line, True, text_color)
+            line_rect = line_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 80 + i * 25))
             screen.blit(line_text, line_rect)
+        
+        # Botón
+        if not self.failed:  # No mostrar botón en caso de Game Over
+            button_rect = pygame.Rect(modal_x + modal_width // 2 - 50, modal_y + modal_height - 50, 100, 30)
+            pygame.draw.rect(screen, self.result_color, button_rect, border_radius=5)
+            pygame.draw.rect(screen, WHITE, button_rect, 2, border_radius=5)
             
-        # Botón de cerrar
-        button_width = 100
-        button_height = 35
-        button_x = modal_x + (modal_width - button_width) // 2
-        button_y = modal_y + modal_height - 50
-        self.result_button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
-        
-        pygame.draw.rect(screen, DARK_GRAY, self.result_button_rect, border_radius=8)
-        pygame.draw.rect(screen, self.result_color, self.result_button_rect, 2, border_radius=8)
-        
-        button_text = self.font_small.render("Cerrar", True, WHITE)
-        button_rect = button_text.get_rect(center=self.result_button_rect.center)
-        screen.blit(button_text, button_rect)
+            button_text = self.font_small.render("Aceptar", True, WHITE)
+            button_text_rect = button_text.get_rect(center=button_rect.center)
+            screen.blit(button_text, button_text_rect)
+            
+            # Guardar referencia al rectángulo del botón
+            self.result_button_rect = button_rect
         
     def _render_feedback_modal(self, screen):
         """Renderiza el modal de feedback de error."""

@@ -82,14 +82,11 @@ class Game:
             self.timer.update()
             self.ui.update()
 
-            # Verificar si el jugador está cerca del área de la misión (solo para PMBOKInitiationRoom)
-           # if isinstance(current_room, PMBOKInitiationRoom):
-            #    if hasattr(current_room, 'check_mission_area'):
-             #       current_room.check_mission_area(self.player.rect)
+            # Verificar si el jugador está cerca del área de la misión
             if hasattr(current_room, 'check_mission_area'):
                 current_room.check_mission_area(self.player.rect)
             if hasattr(current_room, 'check_info_area'):
-                 current_room.check_info_area(self.player.rect)
+                current_room.check_info_area(self.player.rect)
 
             # Verificar si se ha presionado la tecla de espacio para interactuar
             # Bloquear interacción si se está mostrando el recuadro informativo
@@ -102,93 +99,80 @@ class Game:
 
                 # Si está en un área de transición y presiona espacio
                 if in_transition_area:
-                    # Si es la sala 1, 2 o 3 de SCRUM, o la sala 1, 2 o 3 de PMBOK, ir a la siguiente sala
-                    if (isinstance(current_room, ScrumRolesRoom) or
-                        isinstance(current_room, ScrumArtifactsRoom) or
-                        isinstance(current_room, PMBOKInitiationRoom) or
-                        isinstance(current_room, PMBOKPlanningRoom) or
-                        isinstance(current_room, PMBOKExecutionRoom)) and self.room_manager.has_next_room():
-                        # Incrementar contador de salas completadas
-                        self.completed_rooms += 1
+                    # Para salas PMBOK, verificar si la actividad ha sido completada correctamente
+                    can_transition = True
+                    
+                    # Verificar si es una sala PMBOK y tiene una actividad
+                    if (isinstance(current_room, (PMBOKInitiationRoom, PMBOKPlanningRoom, PMBOKExecutionRoom, PMBOKClosingRoom)) 
+                        and hasattr(current_room, 'activity')):
+                        # Solo permitir transición si la actividad ha sido completada con éxito
+                        can_transition = current_room.activity.completed
+                        
+                        if not can_transition:
+                            # Mostrar mensaje al jugador que debe completar la actividad
+                            print("¡Debes completar la actividad antes de avanzar a la siguiente sala!")
+                            # También podríamos mostrar este mensaje en pantalla
+                    
+                    # Si puede transicionar y hay una sala siguiente
+                    if can_transition and self.room_manager.has_next_room():
+                        # Si es la sala 1, 2 o 3 de SCRUM, o la sala 1, 2 o 3 de PMBOK, ir a la siguiente sala
+                        if (isinstance(current_room, ScrumRolesRoom) or
+                            isinstance(current_room, ScrumArtifactsRoom) or
+                            isinstance(current_room, PMBOKInitiationRoom) or
+                            isinstance(current_room, PMBOKPlanningRoom) or
+                            isinstance(current_room, PMBOKExecutionRoom)) and self.room_manager.has_next_room():
+                            # Incrementar contador de salas completadas
+                            self.completed_rooms += 1
 
-                        # Cambiar a la siguiente sala
-                        self.room_manager.go_to_next_room()
-                        current_room = self.room_manager.get_current_room()
-                        self.player.current_room = current_room
+                            # Cambiar a la siguiente sala
+                            self.room_manager.go_to_next_room()
+                            current_room = self.room_manager.get_current_room()
+                            self.player.current_room = current_room
 
-                        # Posicionar al jugador según la sala de destino
-                        if isinstance(current_room, ScrumArtifactsRoom):  # Si va hacia la Sala 2 de SCRUM
-                            self.player.rect.x = WINDOW_WIDTH - self.player.width - 20  # 20 píxeles desde el borde derecho
-                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 20  # 20 píxeles desde el borde inferior
-                        elif isinstance(current_room, PMBOKPlanningRoom):  # Si va hacia la Sala 2 de PMBOK
-                            self.player.rect.x = WINDOW_WIDTH // 2
-                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
-                        elif isinstance(current_room, PMBOKExecutionRoom):  # Si va hacia la Sala 3 de PMBOK
-                            self.player.rect.x = WINDOW_WIDTH // 2
-                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
-                        elif isinstance(current_room, PMBOKClosingRoom):  # Si va hacia la Sala 4 de PMBOK
-                            self.player.rect.x = WINDOW_WIDTH // 2
-                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
-                        else:  # Si va hacia la Sala 3 de SCRUM
-                            self.player.rect.x = WINDOW_WIDTH // 2
-                            self.player.rect.y = WINDOW_HEIGHT - 100
+                            # Posicionar al jugador según la sala de destino
+                            if isinstance(current_room, ScrumArtifactsRoom):  # Si va hacia la Sala 2 de SCRUM
+                                self.player.rect.x = WINDOW_WIDTH - self.player.width - 20  # 20 píxeles desde el borde derecho
+                                self.player.rect.y = WINDOW_HEIGHT - self.player.height - 20  # 20 píxeles desde el borde inferior
+                            elif isinstance(current_room, PMBOKPlanningRoom):  # Si va hacia la Sala 2 de PMBOK
+                                self.player.rect.x = WINDOW_WIDTH // 2
+                                self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
+                            elif isinstance(current_room, PMBOKExecutionRoom):  # Si va hacia la Sala 3 de PMBOK
+                                self.player.rect.x = WINDOW_WIDTH // 2
+                                self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
+                            elif isinstance(current_room, PMBOKClosingRoom):  # Si va hacia la Sala 4 de PMBOK
+                                self.player.rect.x = WINDOW_WIDTH // 2
+                                self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
+                            else:  # Si va hacia la Sala 3 de SCRUM
+                                self.player.rect.x = WINDOW_WIDTH // 2
+                                self.player.rect.y = WINDOW_HEIGHT - 100
 
-                        # Actualizar también las coordenadas x e y del jugador para mantener consistencia
-                        self.player.x = self.player.rect.x
-                        self.player.y = self.player.rect.y
+                            # Actualizar también las coordenadas x e y del jugador para mantener consistencia
+                            self.player.x = self.player.rect.x
+                            self.player.y = self.player.rect.y
 
-                    # Si es la sala 4 de PMBOK o la sala 3 de SCRUM, finalizar el juego
-                    elif isinstance(current_room, PMBOKClosingRoom) or isinstance(current_room, ScrumEventsRoom):
-                        # Incrementar contador de salas completadas
-                        self.completed_rooms += 1
+                        # Si es la sala 4 de PMBOK o la sala 3 de SCRUM, finalizar el juego
+                        elif isinstance(current_room, PMBOKClosingRoom) or isinstance(current_room, ScrumEventsRoom):
+                            # Incrementar contador de salas completadas
+                            self.completed_rooms += 1
 
-                        # Calculate final score based on time left and rooms completed
-                        time_left = self.timer.get_time_left()
-                        self.time_bonus = int(time_left * 10)  # 10 points per second remaining
-                        self.total_score = (self.completed_rooms * 1000) + self.time_bonus  # 1000 points per room + time bonus
-                        self.high_score = max(self.high_score, self.total_score)
-                        self.state = STATE_VICTORY
-                        print("¡Juego completado! Victoria.")
-
-                        # Posicionar al jugador según la sala de destino
-                        if isinstance(current_room, ScrumArtifactsRoom):  # Si va hacia la Sala 2 de SCRUM
-                            self.player.rect.x = WINDOW_WIDTH - self.player.width - 20  # 20 píxeles desde el borde derecho
-                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 20  # 20 píxeles desde el borde inferior
-                        elif isinstance(current_room, PMBOKPlanningRoom):  # Si va hacia la Sala 2 de PMBOK
-                            self.player.rect.x = WINDOW_WIDTH // 2
-                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
-                        elif isinstance(current_room, PMBOKExecutionRoom):  # Si va hacia la Sala 3 de PMBOK
-                            self.player.rect.x = WINDOW_WIDTH // 2
-                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
-                        elif isinstance(current_room, PMBOKClosingRoom):  # Si va hacia la Sala 4 de PMBOK
-                            self.player.rect.x = WINDOW_WIDTH // 2
-                            self.player.rect.y = WINDOW_HEIGHT - self.player.height - 50  # 50 píxeles desde el borde inferior
-                        else:  # Si va hacia la Sala 3 de SCRUM
-                            self.player.rect.x = WINDOW_WIDTH // 2
-                            self.player.rect.y = WINDOW_HEIGHT - 100
-
-                        # Actualizar también las coordenadas x e y del jugador para mantener consistencia
-                        self.player.x = self.player.rect.x
-                        self.player.y = self.player.rect.y
-
-                        # Imprimir mensaje de depuración
-                        print(f"Transición a la siguiente sala: {current_room.__class__.__name__}")
-
-                    # Si es la última sala (ScrumEventsRoom), finalizar el juego
-                    elif isinstance(current_room, ScrumEventsRoom):
-                        # Incrementar contador de salas completadas
-                        self.completed_rooms += 1
-
-                        # Calculate final score based on time left and rooms completed
-                        time_left = self.timer.get_time_left()
-                        self.time_bonus = int(time_left * 10)  # 10 points per second remaining
-                        self.total_score = (self.completed_rooms * 1000) + self.time_bonus  # 1000 points per room + time bonus
-                        self.high_score = max(self.high_score, self.total_score)
-                        self.state = STATE_VICTORY
-                        print("¡Juego completado! Victoria.")
+                            # Calculate final score based on time left and rooms completed
+                            time_left = self.timer.get_time_left()
+                            self.time_bonus = int(time_left * 10)  # 10 points per second remaining
+                            self.total_score = (self.completed_rooms * 1000) + self.time_bonus  # 1000 points per room + time bonus
+                            self.high_score = max(self.high_score, self.total_score)
+                            self.state = STATE_VICTORY
+                            print("¡Juego completado! Victoria.")
 
                 # Reiniciar el estado de interacción para evitar transiciones inmediatas
                 self.player.interacting = False
+                
+            # Verificar si alguna actividad ha fallado (para Game Over)
+            if (isinstance(current_room, (PMBOKInitiationRoom, PMBOKPlanningRoom, PMBOKExecutionRoom, PMBOKClosingRoom)) 
+                and hasattr(current_room, 'activity')):
+                # Si hay una actividad y está marcada como fallida, activar Game Over
+                if hasattr(current_room.activity, 'failed') and current_room.activity.failed:
+                    self.state = STATE_GAME_OVER
+                    print("¡Has fallado la actividad! Game Over.")
 
             # Check if time is up
             if self.timer.is_time_up():

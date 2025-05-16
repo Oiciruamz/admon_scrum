@@ -38,6 +38,7 @@ class PMBOKExecutionActivity:
         self.feedback_button_rect = None
         self.errors_count = 0
         self.max_errors = 3  # Número máximo de errores antes del game over
+        self.failed = False  # Flag para indicar si la actividad ha fallado (game over)
 
         # Fuentes (tamaño reducido pero legible)
         self.font_title = pygame.font.Font(None, 22)  # Antes 28
@@ -179,6 +180,7 @@ class PMBOKExecutionActivity:
         self.show_result = False
         self.feedback_active = False
         self.errors_count = 0
+        self.failed = False  # Reiniciar el estado de fallo
         
         # Reiniciar estado de roles y funciones
         for rol in self.roles:
@@ -206,16 +208,27 @@ class PMBOKExecutionActivity:
                 if self.result_button_rect.collidepoint(event.pos):
                     if self.completed:
                         self.deactivate()
+                    elif self.failed:
+                        # No hacer nada, el game over se activará en la próxima actualización
+                        pass
                     else:
                         self.show_result = False
                     return
+            return  # Ignorar otros eventos mientras se muestra un resultado
 
         # Manejar eventos cuando se muestra feedback
         if self.feedback_active and hasattr(self, 'feedback_button_rect'):
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if self.feedback_button_rect.collidepoint(event.pos):
                     self.feedback_active = False
+                    
+                    # Verificar si se completó la actividad después de cerrar el feedback
+                    if self.completed:
+                        self.show_result = True
+                        self.result_message = "¡Excelente! Has relacionado correctamente todos los roles con sus funciones."
+                        self.result_color = GREEN
                     return
+            return  # Ignorar otros eventos mientras se muestra feedback
 
         # Si se presiona el botón de cerrar manual
         if hasattr(self, 'manual_close_rect') and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -250,46 +263,59 @@ class PMBOKExecutionActivity:
                     rol["rect"].y = event.pos[1] - self.drag_offset_y
 
     def _check_role_drop(self, rol):
-        """Verifica si un rol fue soltado sobre una función correcta."""
+        """Verificar si un rol ha sido colocado sobre una función y si es correcto."""
         for funcion in self.funciones:
-            if funcion["rect"].collidepoint(rol["rect"].center) and not funcion["matched"]:
-                # Verificar si es la asignación correcta
+            if funcion["matched"]:
+                continue  # Saltar funciones ya emparejadas
+                
+            # Verificar si el rol está sobre una función
+            if funcion["rect"].colliderect(rol["rect"]):
+                # Comprobar si el emparejamiento es correcto
                 if funcion["rol_correcto"] == rol["nombre"]:
-                    # Centrar el rol en la parte superior de la función
-                    rol["rect"].x = funcion["rect"].x + (funcion["rect"].width - rol["rect"].width) // 2
-                    rol["rect"].y = funcion["rect"].y - rol["rect"].height // 2
-                    
-                    # Marcar como emparejados
-                    rol["matched"] = True
+                    # Emparejamiento correcto
                     funcion["matched"] = True
+                    rol["matched"] = True
                     
-                    # Verificar si se completaron todos los emparejamientos
+                    # Posicionar el rol correctamente sobre la función
+                    rol["rect"].x = funcion["rect"].x + funcion["rect"].width - rol["rect"].width - 20
+                    rol["rect"].y = funcion["rect"].y + 10
+                    
+                    # Verificar si se han emparejado todos los roles
                     if all(r["matched"] for r in self.roles):
                         self.completed = True
-                        self.show_result = True
-                        self.result_message = "¡Excelente! Has asignado correctamente todos los roles a sus funciones."
+                        # No mostrar el resultado aquí, solo activar el feedback de éxito
+                        self.feedback_active = True
+                        self.result_message = f"¡Correcto! Has emparejado el rol de {rol['nombre']} con su función correspondiente. ¡Has completado todos los emparejamientos!"
+                        self.result_color = GREEN
+                    else:
+                        # Mostrar feedback de éxito para este emparejamiento
+                        self.feedback_active = True
+                        self.result_message = f"¡Correcto! Has emparejado el rol de {rol['nombre']} con su función correspondiente."
                         self.result_color = GREEN
                 else:
-                    # Asignación incorrecta
+                    # Emparejamiento incorrecto
                     self.errors_count += 1
                     self.feedback_active = True
                     
+                    # Reposicionar el rol a su posición original
+                    rol["rect"].x = rol["original_pos"][0]
+                    rol["rect"].y = rol["original_pos"][1]
+                    
+                    # Verificar si ha alcanzado el límite de errores
                     if self.errors_count >= self.max_errors:
-                        self.result_message = "¡Has cometido demasiados errores! No has logrado completar la actividad."
+                        self.failed = True
+                        self.result_message = f"¡Has cometido demasiados errores! Game Over."
                         self.result_color = RED
                         self.show_result = True
                     else:
-                        self.result_message = f"Asignación incorrecta. El rol {rol['nombre']} no corresponde a esas funciones. Errores: {self.errors_count}/{self.max_errors}"
-                        
-                    # Devolver el rol a su posición original
-                    rol["rect"].x = rol["original_pos"][0]
-                    rol["rect"].y = rol["original_pos"][1]
+                        # Todavía tiene intentos
+                        remaining = self.max_errors - self.errors_count
+                        self.result_message = f"Incorrecto. El rol de {rol['nombre']} no corresponde a esta función. Te quedan {remaining} {'intento' if remaining == 1 else 'intentos'}."
+                        self.result_color = RED
                 
-                return
-        
-        # Si no se soltó sobre ninguna función, devolver a la posición original
-        rol["rect"].x = rol["original_pos"][0]
-        rol["rect"].y = rol["original_pos"][1]
+                return True
+                
+        return False
 
     def _wrap_text(self, text, font, max_width):
         """Divide un texto en líneas para que quepa en un ancho máximo."""
@@ -476,63 +502,103 @@ class PMBOKExecutionActivity:
             self._render_feedback_modal(screen)
     
     def _render_result_modal(self, screen):
-        """Renderiza el modal de resultado (éxito o advertencia)."""
+        """Renderiza el modal de resultado."""
+        # Fondo oscurecido para destacar el modal
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))  # Negro semitransparente
+        screen.blit(overlay, (0, 0))
+        
+        # Modal con dimensiones fijas
         modal_width = 400
         modal_height = 200
         modal_x = (WINDOW_WIDTH - modal_width) // 2
         modal_y = (WINDOW_HEIGHT - modal_height) // 2
         
-        # Fondo del modal
-        pygame.draw.rect(screen, DARK_GRAY, (modal_x, modal_y, modal_width, modal_height), border_radius=15)
+        # Fondo del modal según resultado
+        if self.completed:
+            bg_color = (20, 60, 30)  # Verde oscuro
+        elif self.failed:
+            bg_color = (60, 20, 20)  # Rojo oscuro
+        else:
+            bg_color = (60, 50, 20)  # Naranja oscuro
+            
+        # Dibujar el panel principal
+        pygame.draw.rect(screen, bg_color, (modal_x, modal_y, modal_width, modal_height), border_radius=15)
         pygame.draw.rect(screen, self.result_color, (modal_x, modal_y, modal_width, modal_height), 3, border_radius=15)
         
-        # Título según resultado
-        title = "¡ÉXITO!" if self.completed else "GAME OVER"
+        # Título con efecto de sombra
+        title = "¡ÉXITO!" if self.completed else "¡GAME OVER!" if self.failed else "ERROR"
+        title_shadow = self.font_title.render(title, True, (0, 0, 0))
         title_text = self.font_title.render(title, True, self.result_color)
-        title_rect = title_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 30))
-        screen.blit(title_text, title_rect)
         
-        # Mensaje
-        lines = self._wrap_text(self.result_message, self.font_small, modal_width - 40)
-        for i, line in enumerate(lines):
-            line_text = self.font_small.render(line, True, WHITE)
+        # Dibujar sombra y luego texto
+        screen.blit(title_shadow, (modal_x + modal_width // 2 - title_shadow.get_width() // 2 + 2, modal_y + 30 + 2))
+        screen.blit(title_text, (modal_x + modal_width // 2 - title_text.get_width() // 2, modal_y + 30))
+        
+        # Mensaje wrapeado
+        text_color = (220, 255, 220) if self.completed else (255, 220, 220) if self.failed else (255, 255, 220)
+        wrapped_lines = self._wrap_text(self.result_message, self.font_medium, modal_width - 60)
+        
+        for i, line in enumerate(wrapped_lines):
+            line_text = self.font_medium.render(line, True, text_color)
             line_rect = line_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 70 + i * 25))
             screen.blit(line_text, line_rect)
+        
+        # Botón (solo si no es game over)
+        if not self.failed:
+            button_width = 100
+            button_height = 30
+            button_x = modal_x + (modal_width - button_width) // 2
+            button_y = modal_y + modal_height - 50
             
-        # Botón de cerrar
-        button_width = 70
-        button_height = 25
-        button_x = modal_x + (modal_width - button_width) // 2
-        button_y = modal_y + modal_height - 40
-        self.result_button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
-        
-        pygame.draw.rect(screen, DARK_GRAY, self.result_button_rect, border_radius=8)
-        pygame.draw.rect(screen, self.result_color, self.result_button_rect, 2, border_radius=8)
-        
-        button_text = pygame.font.Font(None, 14).render("Cerrar", True, WHITE)
-        button_rect = button_text.get_rect(center=self.result_button_rect.center)
-        screen.blit(button_text, button_rect)
+            button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+            pygame.draw.rect(screen, self.result_color, button_rect, border_radius=10)
+            pygame.draw.rect(screen, WHITE, button_rect, 2, border_radius=10)
+            
+            button_text = self.font_medium.render("Aceptar", True, WHITE)
+            button_text_rect = button_text.get_rect(center=button_rect.center)
+            screen.blit(button_text, button_text_rect)
+            
+            # Guardar referencia al botón
+            self.result_button_rect = button_rect
     
     def _render_feedback_modal(self, screen):
-        """Renderiza el modal de feedback de error."""
+        """Renderiza el modal de feedback."""
         modal_width = 400
         modal_height = 150
         modal_x = (WINDOW_WIDTH - modal_width) // 2
         modal_y = (WINDOW_HEIGHT - modal_height) // 2
         
-        # Fondo del modal con estilo de advertencia
-        pygame.draw.rect(screen, (50, 20, 20), (modal_x, modal_y, modal_width, modal_height), border_radius=15)
-        pygame.draw.rect(screen, ORANGE, (modal_x, modal_y, modal_width, modal_height), 3, border_radius=15)
+        # Determinar si el feedback es positivo o negativo
+        is_correct = self.result_color == GREEN
         
-        # Título de error
-        title_text = self.font_title.render("INCORRECTO", True, ORANGE)
+        # Fondo del modal según el tipo de feedback
+        if is_correct:
+            # Estilo para feedback positivo (verde)
+            bg_color = (20, 50, 20)  # Verde oscuro
+            border_color = GREEN
+            text_color = (200, 255, 200)  # Verde claro
+            title = "¡CORRECTO!"
+        else:
+            # Estilo para feedback negativo (rojo/naranja)
+            bg_color = (50, 20, 20)  # Rojo oscuro
+            border_color = ORANGE
+            text_color = (255, 200, 200)  # Rojo claro
+            title = "INCORRECTO"
+        
+        # Dibujar el panel principal
+        pygame.draw.rect(screen, bg_color, (modal_x, modal_y, modal_width, modal_height), border_radius=15)
+        pygame.draw.rect(screen, border_color, (modal_x, modal_y, modal_width, modal_height), 3, border_radius=15)
+        
+        # Título 
+        title_text = self.font_title.render(title, True, border_color)
         title_rect = title_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 30))
         screen.blit(title_text, title_rect)
         
-        # Mensaje de error
+        # Mensaje 
         lines = self._wrap_text(self.result_message, self.font_small, modal_width - 40)
         for i, line in enumerate(lines):
-            line_text = self.font_small.render(line, True, (255, 200, 200))
+            line_text = self.font_small.render(line, True, text_color)
             line_rect = line_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 70 + i * 25))
             screen.blit(line_text, line_rect)
             
@@ -543,8 +609,11 @@ class PMBOKExecutionActivity:
         button_y = modal_y + modal_height - 30
         self.feedback_button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
         
-        pygame.draw.rect(screen, (80, 20, 20), self.feedback_button_rect, border_radius=8)
-        pygame.draw.rect(screen, ORANGE, self.feedback_button_rect, 2, border_radius=8)
+        # Color del botón según el tipo de feedback
+        button_bg_color = (30, 70, 30) if is_correct else (80, 20, 20)
+        
+        pygame.draw.rect(screen, button_bg_color, self.feedback_button_rect, border_radius=8)
+        pygame.draw.rect(screen, border_color, self.feedback_button_rect, 2, border_radius=8)
         
         button_text = pygame.font.Font(None, 14).render("Entendido", True, WHITE)
         button_rect = button_text.get_rect(center=self.feedback_button_rect.center)

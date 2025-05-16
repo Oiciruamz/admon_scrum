@@ -29,7 +29,7 @@ class PMBOKClosingActivity:
     Actividad educativa para la sala de Cierre PMBOK.
     El jugador debe responder preguntas de múltiple opción sobre gestión de proyectos.
     """
-    def __init__(self):
+    def __init__(self, game_instance=None):
         self.active = False
         self.completed = False
         self.show_result = False
@@ -41,6 +41,8 @@ class PMBOKClosingActivity:
         self.correct_answers = 0
         self.errors_count = 0
         self.max_errors = 3  # Número máximo de errores antes del game over
+        self.failed = False  # Flag para indicar si la actividad ha fallado (game over)
+        self.game = game_instance  # Referencia al juego para poder cambiar el estado
 
         # Fuentes (tamaño reducido pero legible)
         self.font_title = pygame.font.Font(None, 22)
@@ -130,6 +132,7 @@ class PMBOKClosingActivity:
         self.current_question = 0
         self.correct_answers = 0
         self.errors_count = 0
+        self.failed = False  # Reiniciar el estado de fallo
         
         # Reiniciar el estado de las preguntas
         for question in self.questions:
@@ -155,10 +158,10 @@ class PMBOKClosingActivity:
             
             # Mensaje según el número de respuestas correctas
             if self.correct_answers == len(self.questions):
-                self.result_message = "¡Excelente! Has respondido correctamente todas las preguntas."
+                self.result_message = "¡Excelente! Has respondido correctamente todas las preguntas. Has completado el juego con éxito."
                 self.result_color = GREEN
             else:
-                self.result_message = f"Has completado la actividad con {self.correct_answers} de {len(self.questions)} respuestas correctas."
+                self.result_message = f"Has completado la actividad con {self.correct_answers} de {len(self.questions)} respuestas correctas. Has completado el juego con éxito."
                 self.result_color = YELLOW
                 
             return False
@@ -173,10 +176,54 @@ class PMBOKClosingActivity:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if self.result_button_rect.collidepoint(event.pos):
                     if self.completed:
+                        # Activar directamente la pantalla de victoria si tenemos referencia al juego
+                        if self.game:
+                            # Calcular puntuación final
+                            self.game.completed_rooms += 1
+                            time_left = self.game.timer.get_time_left()
+                            self.game.time_bonus = int(time_left * 10)  # 10 puntos por segundo restante
+                            self.game.total_score = (self.game.completed_rooms * 1000) + self.game.time_bonus
+                            self.game.high_score = max(self.game.high_score, self.game.total_score)
+                            # Cambiar estado a victoria
+                            self.game.state = STATE_VICTORY
+                            print("¡Juego completado! Victoria activada directamente.")
+                        # También desactivar la actividad por si acaso
                         self.deactivate()
+                        return
+                    elif self.failed:
+                        # Si ha fallado, activar game over
+                        if self.game:
+                            self.game.state = STATE_GAME_OVER
+                            print("¡Game Over activado directamente!")
+                        return
                     else:
                         self.show_result = False
                     return
+            # También permitir cerrar con la tecla ESPACIO cuando se muestra el resultado
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                if self.completed:
+                    # Activar directamente la pantalla de victoria si tenemos referencia al juego
+                    if self.game:
+                        # Calcular puntuación final
+                        self.game.completed_rooms += 1
+                        time_left = self.game.timer.get_time_left()
+                        self.game.time_bonus = int(time_left * 10)  # 10 puntos por segundo restante
+                        self.game.total_score = (self.game.completed_rooms * 1000) + self.game.time_bonus
+                        self.game.high_score = max(self.game.high_score, self.game.total_score)
+                        # Cambiar estado a victoria
+                        self.game.state = STATE_VICTORY
+                        print("¡Juego completado! Victoria activada directamente con ESPACIO.")
+                    self.deactivate()
+                    return
+                elif self.failed:
+                    # Si ha fallado, activar game over
+                    if self.game:
+                        self.game.state = STATE_GAME_OVER
+                        print("¡Game Over activado directamente con ESPACIO!")
+                    return
+                else:
+                    self.show_result = False
+                return
 
         # Manejar eventos cuando se muestra feedback
         if self.feedback_active and hasattr(self, 'feedback_button_rect'):
@@ -187,6 +234,12 @@ class PMBOKClosingActivity:
                     if self.questions[self.current_question]["answered"]:
                         self._next_question()
                     return
+            # También permitir cerrar el feedback con ESPACIO
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                self.feedback_active = False
+                if self.questions[self.current_question]["answered"]:
+                    self._next_question()
+                return
 
         # Si se presiona el botón de cerrar manual
         if hasattr(self, 'manual_close_rect') and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -199,33 +252,37 @@ class PMBOKClosingActivity:
             # Verificar si se hizo clic en alguna opción
             current_q = self.questions[self.current_question]
             
-            # Solo procesar clics si la pregunta aún no ha sido respondida
             if not current_q["answered"]:
                 for i, rect in enumerate(self.option_rects):
                     if rect.collidepoint(event.pos):
-                        # Marcar la pregunta como respondida
-                        current_q["answered"] = True
+                        # Guardar la opción seleccionada
                         current_q["selected"] = i
+                        current_q["answered"] = True
                         
-                        # Verificar si la respuesta es correcta
+                        # Verificar si es correcta
                         if i == current_q["correct"]:
+                            # Respuesta correcta
                             self.correct_answers += 1
                             self.feedback_active = True
-                            self.result_message = "¡Correcto! Esa es la respuesta adecuada."
+                            self.result_message = f"¡Correcto! Esta es la mejor opción para esta situación."
                             self.result_color = GREEN
                         else:
+                            # Respuesta incorrecta
                             self.errors_count += 1
                             self.feedback_active = True
                             
+                            # Verificar si se ha llegado al límite de errores
                             if self.errors_count >= self.max_errors:
-                                self.show_result = True
-                                self.result_message = "¡Has cometido demasiados errores! No has logrado completar la actividad."
-                                self.result_color = RED
+                                self.failed = True
+                                self.result_message = f"Respuesta incorrecta. Has cometido demasiados errores. ¡Game Over!"
                             else:
-                                self.result_message = f"Respuesta incorrecta. La opción correcta era: {current_q['options'][current_q['correct']]}. Errores: {self.errors_count}/{self.max_errors}"
-                                self.result_color = RED
+                                # Mostrar cuántos intentos quedan
+                                remaining = self.max_errors - self.errors_count
+                                self.result_message = f"Respuesta incorrecta. La opción correcta era: {self.questions[self.current_question]['options'][current_q['correct']]}. Te quedan {remaining} {'intento' if remaining == 1 else 'intentos'}."
+                            
+                            self.result_color = RED
                         
-                        break
+                        return
 
     def _wrap_text(self, text, font, max_width):
         """Divide un texto en líneas para que quepa en un ancho máximo."""
@@ -418,15 +475,45 @@ class PMBOKClosingActivity:
         button_width = 70
         button_height = 25
         button_x = modal_x + (modal_width - button_width) // 2
-        button_y = modal_y + modal_height - 40
+        button_y = modal_y + modal_height - 60
         self.result_button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
         
         pygame.draw.rect(screen, DARK_GRAY, self.result_button_rect, border_radius=8)
         pygame.draw.rect(screen, self.result_color, self.result_button_rect, 2, border_radius=8)
         
-        button_text = pygame.font.Font(None, 14).render("Cerrar", True, WHITE)
+        button_text = pygame.font.Font(None, 14).render("Aceptar", True, WHITE)
         button_rect = button_text.get_rect(center=self.result_button_rect.center)
         screen.blit(button_text, button_rect)
+        
+        # Agregar texto de ayuda para indicar que pueden usar la tecla ESPACIO
+        if self.completed:
+            help_text = pygame.font.Font(None, 14).render("Presiona ESPACIO o haz clic para finalizar el juego", True, LIGHT_GRAY)
+            help_rect = help_text.get_rect(center=(modal_x + modal_width // 2, modal_y + modal_height - 30))
+            screen.blit(help_text, help_rect)
+            
+            # Si la actividad está completada y tenemos la referencia al juego, activar la victoria directamente
+            if self.game and hasattr(self.game, 'state'):
+                # Esperar 3 segundos y activar la victoria automáticamente
+                current_time = pygame.time.get_ticks()
+                
+                # Verificar si hemos iniciado el temporizador
+                if not hasattr(self, 'completion_time'):
+                    self.completion_time = current_time
+                
+                # Si han pasado 5 segundos desde que se completó
+                if current_time - self.completion_time > 5000:  # 5 segundos en milisegundos
+                    # Calcular puntuación final
+                    self.game.completed_rooms += 1
+                    time_left = self.game.timer.get_time_left()
+                    self.game.time_bonus = int(time_left * 10)  # 10 puntos por segundo restante
+                    self.game.total_score = (self.game.completed_rooms * 1000) + self.game.time_bonus
+                    self.game.high_score = max(self.game.high_score, self.game.total_score)
+                    # Cambiar estado a victoria
+                    self.game.state = STATE_VICTORY
+                    print("¡Juego completado! Victoria activada automáticamente después de 5 segundos.")
+                    # Limpiar el temporizador
+                    del self.completion_time
+                    self.deactivate()
     
     def _render_feedback_modal(self, screen):
         """Renderiza el modal de feedback de error o acierto."""
@@ -441,30 +528,30 @@ class PMBOKClosingActivity:
         pygame.draw.rect(screen, self.result_color, (modal_x, modal_y, modal_width, modal_height), 3, border_radius=15)
         
         # Título de feedback
-        title = "¡CORRECTO!" if self.result_color == GREEN else "INCORRECTO"
-        title_text = self.font_title.render(title, True, self.result_color)
+        title = "¡Correcto!" if self.result_color == GREEN else "Incorrecto"
+        if self.failed:
+            title = "¡Game Over!"
+            
+        title_text = self.font_title.render(title, True, WHITE)
         title_rect = title_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 30))
         screen.blit(title_text, title_rect)
         
         # Mensaje de feedback
-        text_color = (200, 255, 200) if self.result_color == GREEN else (255, 200, 200)
-        lines = self._wrap_text(self.result_message, self.font_small, modal_width - 40)
-        for i, line in enumerate(lines):
-            line_text = self.font_small.render(line, True, text_color)
-            line_rect = line_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 70 + i * 25))
-            screen.blit(line_text, line_rect)
-            
-        # Botón de continuar - ajustada su posición
-        button_width = 70
-        button_height = 25
-        button_x = modal_x + (modal_width - button_width) // 2
-        button_y = modal_y + modal_height - button_height - 20  # Alejado del borde inferior
-        self.feedback_button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+        wrapped_lines = self._wrap_text(self.result_message, self.font_medium, modal_width - 60)
+        for i, line in enumerate(wrapped_lines):
+            message_text = self.font_medium.render(line, True, WHITE)
+            message_rect = message_text.get_rect(center=(modal_x + modal_width // 2, modal_y + 70 + i * 25))
+            screen.blit(message_text, message_rect)
         
-        btn_bg_color = (40, 80, 40) if self.result_color == GREEN else (80, 20, 20)
-        pygame.draw.rect(screen, btn_bg_color, self.feedback_button_rect, border_radius=8)
-        pygame.draw.rect(screen, self.result_color, self.feedback_button_rect, 2, border_radius=8)
+        # Botón para cerrar el feedback
+        button_rect = pygame.Rect(modal_x + modal_width // 2 - 50, modal_y + modal_height - 40, 100, 30)
+        pygame.draw.rect(screen, self.result_color, button_rect, border_radius=10)
+        pygame.draw.rect(screen, WHITE, button_rect, 2, border_radius=10)
         
-        button_text = pygame.font.Font(None, 14).render("Continuar", True, WHITE)
-        button_rect = button_text.get_rect(center=self.feedback_button_rect.center)
-        screen.blit(button_text, button_rect) 
+        # No mostrar el botón de continuar si ha fallado, ya que pasará al Game Over
+        button_text = self.font_medium.render("Continuar" if not self.failed else "Aceptar", True, WHITE)
+        button_text_rect = button_text.get_rect(center=button_rect.center)
+        screen.blit(button_text, button_text_rect)
+        
+        # Guardar referencia al rectángulo del botón para detectar clics
+        self.feedback_button_rect = button_rect 
